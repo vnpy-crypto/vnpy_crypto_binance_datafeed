@@ -15,16 +15,14 @@ BINANCE datafeed module for VeighNa framework.
 pip install -e .
 ```
 
-## Configuration
+## Symbol Format
 
-Add to your `vt_setting.json`:
+合约代码格式: `{原始代码}_{SPOT|SWAP}_BINANCE`
 
-```json
-{
-    "datafeed.name": "crypto_binance_datafeed",
-    "binance.market_type": "SPOT"
-}
-```
+- 现货合约: `BTCUSDT_SPOT_BINANCE`
+- 期货合约: `BTCUSDT_SWAP_BINANCE`
+
+系统会自动识别市场类型并选择正确的API端点。
 
 ## Usage
 
@@ -37,7 +35,7 @@ from datetime import datetime
 datafeed = get_datafeed()
 
 req = HistoryRequest(
-    symbol="BTCUSDT",
+    symbol="BTCUSDT_SPOT_BINANCE",  # 或 BTCUSDT_SWAP_BINANCE
     exchange=Exchange.GLOBAL,
     interval=Interval.HOUR,
     start=datetime(2024, 1, 1),
@@ -46,6 +44,15 @@ req = HistoryRequest(
 
 bars = datafeed.query_bar_history(req)
 ```
+
+## Troubleshooting
+
+### 错误: "合约代码格式错误"
+
+确保合约代码格式正确:
+- ✅ 正确: `BTCUSDT_SPOT_BINANCE`
+- ✅ 正确: `BTCUSDT_SWAP_BINANCE`
+- ❌ 错误: `BTCUSDT` (缺少市场类型标识)
 
 ## License
 

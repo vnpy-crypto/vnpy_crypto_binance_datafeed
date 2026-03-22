@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import Enum
 from vnpy.trader.constant import Interval
 
@@ -22,6 +23,58 @@ class MarketType(Enum):
 
     SPOT = "SPOT"
     FUTURES = "FUTURES"
+    SWAP = "SWAP"
+
+
+@dataclass
+class ParsedSymbol:
+    """
+    Parsed symbol result from vt_symbol.
+    """
+
+    base: str
+    market_type: str
+    exchange: str
+    full_symbol: str
+
+
+def parse_vt_symbol(vt_symbol: str) -> ParsedSymbol | None:
+    """
+    Parse vt_symbol in format: {BASE}_{SPOT|SWAP}_BINANCE[.GLOBAL]
+
+    Returns ParsedSymbol on success, None on invalid format.
+    """
+    if not vt_symbol:
+        return None
+
+    # Remove .GLOBAL suffix if present
+    clean_symbol = vt_symbol
+    if clean_symbol.endswith(".GLOBAL"):
+        clean_symbol = clean_symbol[:-7]
+
+    # Split by underscore
+    parts = clean_symbol.split("_")
+    if len(parts) != 3:
+        return None
+
+    base, market_type_str, exchange = parts
+
+    # Validate exchange
+    if exchange != "BINANCE":
+        return None
+
+    # Validate market_type
+    valid_market_types = {"SPOT", "SWAP"}
+    if market_type_str not in valid_market_types:
+        return None
+
+    # Validate base is not empty
+    if not base:
+        return None
+
+    return ParsedSymbol(
+        base=base, market_type=market_type_str, exchange=exchange, full_symbol=vt_symbol
+    )
 
 
 # API endpoints for data.binance.vision

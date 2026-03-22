@@ -117,7 +117,10 @@ def datafeed(mock_database, mock_vision_client, mock_rest_client):
     ):
         df = BinanceDatafeed()
         df.inited = True  # Pre-initialize to avoid exchange_info calls
-        df.symbols = {"BTCUSDT", "ETHUSDT"}  # Pre-populate valid symbols
+        df.symbols = {
+            "BTCUSDT_SPOT_BINANCE",
+            "ETHUSDT_SPOT_BINANCE",
+        }  # Pre-populate valid symbols
         return df
 
 
@@ -128,8 +131,8 @@ class TestBinanceDatafeedInit:
         """Test successful initialization."""
         mock_rest_client.get_exchange_info.return_value = {
             "symbols": [
-                {"symbol": "BTCUSDT"},
-                {"symbol": "ETHUSDT"},
+                {"symbol": "BTCUSDT_SPOT_BINANCE"},
+                {"symbol": "ETHUSDT_SPOT_BINANCE"},
             ]
         }
 
@@ -155,8 +158,8 @@ class TestBinanceDatafeedInit:
 
             assert result is True
             assert df.inited is True
-            assert "BTCUSDT" in df.symbols
-            assert "ETHUSDT" in df.symbols
+            assert "BTCUSDT_SPOT_BINANCE" in df.symbols
+            assert "ETHUSDT_SPOT_BINANCE" in df.symbols
             assert any("初始化成功" in m for m in messages)
 
     def test_init_already_initialized(self, datafeed):
@@ -222,7 +225,7 @@ class TestQueryBarHistoryHistorical:
 
         # Create request
         req = HistoryRequest(
-            symbol="BTCUSDT",
+            symbol="BTCUSDT_SPOT_BINANCE",
             exchange=Exchange.GLOBAL,
             interval=Interval.MINUTE,
             start=start,
@@ -233,7 +236,7 @@ class TestQueryBarHistoryHistorical:
         bars = datafeed.query_bar_history(req, output=messages.append)
 
         assert len(bars) == 2
-        assert bars[0].symbol == "BTCUSDT"
+        assert bars[0].symbol == "BTCUSDT_SPOT_BINANCE"
         assert bars[0].exchange == Exchange.GLOBAL
         assert bars[0].interval == Interval.MINUTE
         mock_vision_client.download_klines.assert_called()
@@ -251,7 +254,7 @@ class TestQueryBarHistoryHistorical:
         mock_vision_client.download_klines.return_value = None
 
         req = HistoryRequest(
-            symbol="BTCUSDT",
+            symbol="BTCUSDT_SPOT_BINANCE",
             exchange=Exchange.GLOBAL,
             interval=Interval.MINUTE,
             start=start,
@@ -276,7 +279,7 @@ class TestQueryBarHistoryHistorical:
         mock_vision_client.download_klines.return_value = b"not a valid zip file"
 
         req = HistoryRequest(
-            symbol="BTCUSDT",
+            symbol="BTCUSDT_SPOT_BINANCE",
             exchange=Exchange.GLOBAL,
             interval=Interval.MINUTE,
             start=start,
@@ -314,7 +317,7 @@ class TestQueryBarHistoryRecent:
         mock_rest_client.get_klines.return_value = create_sample_kline_json(timestamps)
 
         req = HistoryRequest(
-            symbol="BTCUSDT",
+            symbol="BTCUSDT_SPOT_BINANCE",
             exchange=Exchange.GLOBAL,
             interval=Interval.MINUTE,
             start=start,
@@ -349,7 +352,7 @@ class TestQueryBarHistoryRecent:
         ]
 
         req = HistoryRequest(
-            symbol="BTCUSDT",
+            symbol="BTCUSDT_SPOT_BINANCE",
             exchange=Exchange.GLOBAL,
             interval=Interval.MINUTE,
             start=start,
@@ -374,7 +377,7 @@ class TestQueryBarHistoryRecent:
         mock_rest_client.get_klines.return_value = []
 
         req = HistoryRequest(
-            symbol="BTCUSDT",
+            symbol="BTCUSDT_SPOT_BINANCE",
             exchange=Exchange.GLOBAL,
             interval=Interval.MINUTE,
             start=start,
@@ -414,7 +417,7 @@ class TestQueryBarHistoryMixed:
         )
 
         req = HistoryRequest(
-            symbol="BTCUSDT",
+            symbol="BTCUSDT_SPOT_BINANCE",
             exchange=Exchange.GLOBAL,
             interval=Interval.MINUTE,
             start=start,
@@ -460,7 +463,7 @@ class TestSymbolNormalization:
 
         # Symbol should be normalized to uppercase in results
         if bars:
-            assert bars[0].symbol == "BTCUSDT"
+            assert bars[0].symbol == "BTCUSDT_SPOT_BINANCE"
 
     def test_symbol_normalization_mixed_case(
         self, datafeed, mock_vision_client, mock_database
@@ -485,7 +488,7 @@ class TestSymbolNormalization:
         bars = datafeed.query_bar_history(req, output=lambda x: None)
 
         if bars:
-            assert bars[0].symbol == "BTCUSDT"
+            assert bars[0].symbol == "BTCUSDT_SPOT_BINANCE"
 
 
 class TestDuplicateData:
@@ -498,11 +501,11 @@ class TestDuplicateData:
         end = today - timedelta(days=5)
 
         # Mock existing data in database
-        existing_bar = create_bar_data("BTCUSDT", start)
+        existing_bar = create_bar_data("BTCUSDT_SPOT_BINANCE", start)
         mock_database.load_bar_data.return_value = [existing_bar]
 
         req = HistoryRequest(
-            symbol="BTCUSDT",
+            symbol="BTCUSDT_SPOT_BINANCE",
             exchange=Exchange.GLOBAL,
             interval=Interval.MINUTE,
             start=start,
@@ -538,7 +541,7 @@ class TestDuplicateData:
         mock_rest_client.get_klines.return_value = create_sample_kline_json([same_ts])
 
         req = HistoryRequest(
-            symbol="BTCUSDT",
+            symbol="BTCUSDT_SPOT_BINANCE",
             exchange=Exchange.GLOBAL,
             interval=Interval.MINUTE,
             start=start,
@@ -571,7 +574,7 @@ class TestDuplicateData:
         mock_rest_client.get_klines.return_value = create_sample_kline_json([ts2, ts3])
 
         req = HistoryRequest(
-            symbol="BTCUSDT",
+            symbol="BTCUSDT_SPOT_BINANCE",
             exchange=Exchange.GLOBAL,
             interval=Interval.MINUTE,
             start=start,
@@ -596,7 +599,7 @@ class TestInvalidSymbol:
         end = now
 
         req = HistoryRequest(
-            symbol="INVALIDPAIR",  # Not in valid symbols
+            symbol="INVALIDPAIR_SPOT_BINANCE",  # Valid format but not in supported symbols
             exchange=Exchange.GLOBAL,
             interval=Interval.MINUTE,
             start=start,
@@ -638,7 +641,7 @@ class TestInvalidSymbol:
             mock_rest_client.get_klines.return_value = []
 
             req = HistoryRequest(
-                symbol="ANYSYMBOL",
+                symbol="ANYSYMBOL_SPOT_BINANCE",
                 exchange=Exchange.GLOBAL,
                 interval=Interval.MINUTE,
                 start=start,
@@ -669,7 +672,7 @@ class TestIntervalHandling:
         # Mock INTERVAL_VT2BINANCE to not contain this interval
         with patch("vnpy_crypto_binance_datafeed.datafeed.INTERVAL_VT2BINANCE", {}):
             req = HistoryRequest(
-                symbol="BTCUSDT",
+                symbol="BTCUSDT_SPOT_BINANCE",
                 exchange=Exchange.GLOBAL,
                 interval=mock_interval,
                 start=start,
@@ -693,7 +696,7 @@ class TestIntervalHandling:
             mock_rest_client.get_klines.return_value = []
 
             req = HistoryRequest(
-                symbol="BTCUSDT",
+                symbol="BTCUSDT_SPOT_BINANCE",
                 exchange=Exchange.GLOBAL,
                 interval=interval,
                 start=start,
@@ -756,7 +759,7 @@ class TestEdgeCases:
         mock_rest_client.get_klines.return_value = []
 
         req = HistoryRequest(
-            symbol="BTCUSDT",
+            symbol="BTCUSDT_SPOT_BINANCE",
             exchange=Exchange.GLOBAL,
             interval=Interval.MINUTE,
             start=start,
@@ -772,7 +775,7 @@ class TestEdgeCases:
     ):
         """Test that query automatically initializes if not already initialized."""
         mock_rest_client.get_exchange_info.return_value = {
-            "symbols": [{"symbol": "BTCUSDT"}]
+            "symbols": [{"symbol": "BTCUSDT_SPOT_BINANCE"}]
         }
         mock_rest_client.get_klines.return_value = []
 
@@ -797,7 +800,7 @@ class TestEdgeCases:
             start = now - timedelta(hours=1)
 
             req = HistoryRequest(
-                symbol="BTCUSDT",
+                symbol="BTCUSDT_SPOT_BINANCE",
                 exchange=Exchange.GLOBAL,
                 interval=Interval.MINUTE,
                 start=start,
@@ -813,3 +816,175 @@ class TestEdgeCases:
         """Test that _save_to_database handles empty list."""
         datafeed._save_to_database([])
         mock_database.save_bar_data.assert_not_called()
+
+
+class TestParseVtSymbol:
+    """Tests for parse_vt_symbol function."""
+
+    def test_parse_spot_symbol(self):
+        """Test parsing SPOT market symbol."""
+        from vnpy_crypto_binance_datafeed.constant import parse_vt_symbol
+
+        result = parse_vt_symbol("BTCUSDT_SPOT_BINANCE")
+
+        assert result is not None
+        assert result.base == "BTCUSDT"
+        assert result.market_type == "SPOT"
+        assert result.exchange == "BINANCE"
+        assert result.full_symbol == "BTCUSDT_SPOT_BINANCE"
+
+    def test_parse_swap_symbol(self):
+        """Test parsing SWAP market symbol."""
+        from vnpy_crypto_binance_datafeed.constant import parse_vt_symbol
+
+        result = parse_vt_symbol("BTCUSDT_SWAP_BINANCE")
+
+        assert result is not None
+        assert result.base == "BTCUSDT"
+        assert result.market_type == "SWAP"
+        assert result.exchange == "BINANCE"
+        assert result.full_symbol == "BTCUSDT_SWAP_BINANCE"
+
+    def test_parse_with_global_suffix(self):
+        """Test parsing symbol with .GLOBAL suffix."""
+        from vnpy_crypto_binance_datafeed.constant import parse_vt_symbol
+
+        result = parse_vt_symbol("ETHUSDT_SPOT_BINANCE.GLOBAL")
+
+        assert result is not None
+        assert result.base == "ETHUSDT"
+        assert result.market_type == "SPOT"
+        assert result.exchange == "BINANCE"
+        assert result.full_symbol == "ETHUSDT_SPOT_BINANCE.GLOBAL"
+
+    def test_parse_invalid_symbol(self):
+        """Test parsing invalid symbol formats."""
+        from vnpy_crypto_binance_datafeed.constant import parse_vt_symbol
+
+        # Invalid: missing market type and exchange
+        result = parse_vt_symbol("BTCUSDT")
+        assert result is None
+
+        # Invalid: wrong format (missing parts)
+        result = parse_vt_symbol("BTCUSDT_SPOT")
+        assert result is None
+
+        # Invalid: wrong exchange
+        result = parse_vt_symbol("BTCUSDT_SPOT_OKX")
+        assert result is None
+
+        # Invalid: wrong market type
+        result = parse_vt_symbol("BTCUSDT_OPTIONS_BINANCE")
+        assert result is None
+
+        # Invalid: empty string
+        result = parse_vt_symbol("")
+        assert result is None
+
+
+class TestGlobalSuffixValidation:
+    """Tests for .GLOBAL suffix validation in query_bar_history.
+
+    These tests verify that symbols with .GLOBAL suffix (e.g., BTCUSDT_SPOT_BINANCE.GLOBAL)
+    are accepted by query_bar_history, even though datafeed.symbols only contains the
+    cleaned format (without .GLOBAL suffix).
+    """
+
+    def test_spot_global_suffix(
+        self, datafeed, mock_database, mock_vision_client, mock_rest_client
+    ):
+        """Test that SPOT symbol with .GLOBAL suffix passes validation."""
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        start = today - timedelta(days=7)
+        end = today - timedelta(days=1)
+
+        # Mock vision client returning valid data
+        ts = int(start.timestamp() * 1000)
+        csv_data = create_sample_csv_data([ts])
+        mock_vision_client.download_klines.return_value = create_mock_zip_csv(csv_data)
+
+        # Mock REST client returning empty (no recent data needed)
+        mock_rest_client.get_klines.return_value = []
+
+        # Create request with .GLOBAL suffix
+        req = HistoryRequest(
+            symbol="BTCUSDT_SPOT_BINANCE.GLOBAL",
+            exchange=Exchange.GLOBAL,
+            interval=Interval.MINUTE,
+            start=start,
+            end=end,
+        )
+
+        # Execute - should NOT reject symbol due to .GLOBAL suffix
+        bars = datafeed.query_bar_history(req, output=lambda x: None)
+
+        # Verify data was downloaded (validation passed)
+        assert len(bars) > 0
+        mock_vision_client.download_klines.assert_called()
+
+    def test_swap_global_suffix(
+        self, datafeed, mock_database, mock_vision_client, mock_rest_client
+    ):
+        """Test that SWAP symbol with .GLOBAL suffix passes validation."""
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        start = today - timedelta(days=7)
+        end = today - timedelta(days=1)
+
+        # Add SWAP symbol to valid symbols set
+        datafeed.symbols.add("BTCUSDT_SWAP_BINANCE")
+
+        # Mock vision client returning valid data
+        ts = int(start.timestamp() * 1000)
+        csv_data = create_sample_csv_data([ts])
+        mock_vision_client.download_klines.return_value = create_mock_zip_csv(csv_data)
+
+        # Mock REST client returning empty (no recent data needed)
+        mock_rest_client.get_klines.return_value = []
+
+        # Create request with .GLOBAL suffix
+        req = HistoryRequest(
+            symbol="BTCUSDT_SWAP_BINANCE.GLOBAL",
+            exchange=Exchange.GLOBAL,
+            interval=Interval.MINUTE,
+            start=start,
+            end=end,
+        )
+
+        # Execute - should NOT reject symbol due to .GLOBAL suffix
+        bars = datafeed.query_bar_history(req, output=lambda x: None)
+
+        # Verify data was downloaded (validation passed)
+        assert len(bars) > 0
+        mock_vision_client.download_klines.assert_called()
+
+    def test_backward_compatibility(
+        self, datafeed, mock_database, mock_vision_client, mock_rest_client
+    ):
+        """Test that symbol without .GLOBAL suffix still works (backward compatibility)."""
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        start = today - timedelta(days=7)
+        end = today - timedelta(days=1)
+
+        # Mock vision client returning valid data
+        ts = int(start.timestamp() * 1000)
+        csv_data = create_sample_csv_data([ts])
+        mock_vision_client.download_klines.return_value = create_mock_zip_csv(csv_data)
+
+        # Mock REST client returning empty (no recent data needed)
+        mock_rest_client.get_klines.return_value = []
+
+        # Create request without .GLOBAL suffix (original format)
+        req = HistoryRequest(
+            symbol="BTCUSDT_SPOT_BINANCE",
+            exchange=Exchange.GLOBAL,
+            interval=Interval.MINUTE,
+            start=start,
+            end=end,
+        )
+
+        # Execute
+        bars = datafeed.query_bar_history(req, output=lambda x: None)
+
+        # Verify data was downloaded
+        assert len(bars) > 0
+        mock_vision_client.download_klines.assert_called()

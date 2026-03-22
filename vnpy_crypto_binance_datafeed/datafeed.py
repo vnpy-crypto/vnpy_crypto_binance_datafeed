@@ -12,7 +12,12 @@ from vnpy.trader.setting import SETTINGS
 from .vision_client import VisionClient
 from .rest_client import BinanceRestClient
 from .parser import parse_kline_csv, convert_to_bar_data
-from .constant import INTERVAL_VT2BINANCE, SUPPORTED_INTERVALS, MarketType
+from .constant import (
+    INTERVAL_VT2BINANCE,
+    SUPPORTED_INTERVALS,
+    MarketType,
+    parse_vt_symbol,
+)
 
 
 class BinanceDatafeed(BaseDatafeed):
@@ -28,12 +33,31 @@ class BinanceDatafeed(BaseDatafeed):
             market_type_str = SETTINGS.get("binance.market_type", "SPOT")
             self.market_type: MarketType = MarketType(market_type_str.upper())
 
-        self.vision_client: VisionClient = VisionClient(market_type=self.market_type)
-        self.rest_client: BinanceRestClient = BinanceRestClient(
-            market_type=self.market_type
+        # Dual market clients
+        self.spot_rest_client: BinanceRestClient = BinanceRestClient(
+            market_type=MarketType.SPOT
         )
+        self.swap_rest_client: BinanceRestClient = BinanceRestClient(
+            market_type=MarketType.SWAP
+        )
+        self.spot_vision_client: VisionClient = VisionClient(
+            market_type=MarketType.SPOT
+        )
+        self.swap_vision_client: VisionClient = VisionClient(
+            market_type=MarketType.SWAP
+        )
+
+        # Backward compatibility: point to spot clients by default
+        self.vision_client: VisionClient = self.spot_vision_client
+        self.rest_client: BinanceRestClient = self.spot_rest_client
+
         self.database: BaseDatabase = get_database()
         self.inited: bool = False
+
+        # Separate symbol sets for each market
+        self.spot_symbols: set[str] = set()
+        self.swap_symbols: set[str] = set()
+        # Backward compatibility: combined symbols
         self.symbols: set[str] = set()
 
     def init(self, output: Callable = print) -> bool:
@@ -45,12 +69,31 @@ class BinanceDatafeed(BaseDatafeed):
 
         try:
             output("正在初始化Binance数据服务...")
-            exchange_info = self.rest_client.get_exchange_info()
-            for symbol_data in exchange_info.get("symbols", []):
-                self.symbols.add(symbol_data["symbol"])
+
+            # Load SPOT symbols
+            output("正在加载现货合约信息...")
+            spot_info = self.spot_rest_client.get_exchange_info()
+            for symbol_data in spot_info.get("symbols", []):
+                base_symbol = symbol_data["symbol"]
+                self.spot_symbols.add(base_symbol)
+                # Also add full format: BTCUSDT -> BTCUSDT_SPOT_BINANCE
+                self.spot_symbols.add(f"{base_symbol}_SPOT_BINANCE")
+
+            # Load SWAP symbols
+            output("正在加载期货合约信息...")
+            swap_info = self.swap_rest_client.get_exchange_info()
+            for symbol_data in swap_info.get("symbols", []):
+                base_symbol = symbol_data["symbol"]
+                self.swap_symbols.add(base_symbol)
+                self.swap_symbols.add(f"{base_symbol}_SWAP_BINANCE")
+
+            # Update backward compat sets
+            self.symbols = self.spot_symbols | self.swap_symbols
 
             self.inited = True
-            output("Binance数据服务初始化成功")
+            output(
+                f"Binance数据服务初始化成功，加载了 {len(self.spot_symbols)} 个现货合约和 {len(self.swap_symbols)} 个期货合约"
+            )
             return True
         except Exception as e:
             output(f"Binance数据服务初始化失败: {e}")
@@ -65,13 +108,29 @@ class BinanceDatafeed(BaseDatafeed):
         if not self.inited:
             self.init(output)
 
-        # Normalize symbol
-        symbol = req.symbol.upper()
+        # Parse symbol to extract base, market_type, and full_symbol
+        parsed = parse_vt_symbol(req.symbol.upper())
 
-        # Validate symbol
-        if self.symbols and symbol not in self.symbols:
-            output(f"不支持的合约代码: {symbol}")
+        if parsed is None:
+            output("合约代码格式错误，应为 XXX_SPOT_BINANCE 或 XXX_SWAP_BINANCE")
             return []
+
+        # Select clients based on market_type
+        if parsed.market_type == "SPOT":
+            rest_client = self.spot_rest_client
+            vision_client = self.spot_vision_client
+        else:  # SWAP
+            rest_client = self.swap_rest_client
+            vision_client = self.swap_vision_client
+
+        # Validate symbol (strip .GLOBAL suffix for validation)
+        symbol_for_validation = parsed.full_symbol.replace(".GLOBAL", "")
+        if self.symbols and symbol_for_validation not in self.symbols:
+            output(f"不支持的合约代码: {parsed.full_symbol}")
+            return []
+
+        # Use parsed.base for API calls
+        symbol_for_api = parsed.base  # e.g., "BTCUSDT"
 
         # Handle None end time
         end_time: datetime = req.end if req.end else datetime.now()
@@ -94,7 +153,7 @@ class BinanceDatafeed(BaseDatafeed):
 
         # Check if data already exists in database
         existing_bars = self.database.load_bar_data(
-            symbol=symbol,
+            symbol=req.symbol,
             exchange=req.exchange,
             interval=interval,
             start=start_time,
@@ -111,18 +170,46 @@ class BinanceDatafeed(BaseDatafeed):
         bars = []
         if source == "vision":
             bars = self._download_from_vision(
-                req, binance_interval, start_time, end_time, interval, output
+                req,
+                binance_interval,
+                start_time,
+                end_time,
+                interval,
+                output,
+                vision_client=vision_client,
+                symbol_for_api=symbol_for_api,
             )
         elif source == "rest":
             bars = self._download_from_rest(
-                req, binance_interval, start_time, end_time, interval, output
+                req,
+                binance_interval,
+                start_time,
+                end_time,
+                interval,
+                output,
+                rest_client=rest_client,
+                symbol_for_api=symbol_for_api,
             )
         elif source == "both":
             bars_vision = self._download_from_vision(
-                req, binance_interval, start_time, end_time, interval, output
+                req,
+                binance_interval,
+                start_time,
+                end_time,
+                interval,
+                output,
+                vision_client=vision_client,
+                symbol_for_api=symbol_for_api,
             )
             bars_rest = self._download_from_rest(
-                req, binance_interval, start_time, end_time, interval, output
+                req,
+                binance_interval,
+                start_time,
+                end_time,
+                interval,
+                output,
+                rest_client=rest_client,
+                symbol_for_api=symbol_for_api,
             )
             # Merge and deduplicate
             bars_dict = {bar.datetime: bar for bar in bars_vision}
@@ -161,11 +248,20 @@ class BinanceDatafeed(BaseDatafeed):
         end_time: datetime,
         interval: Interval,
         output: Callable = print,
+        vision_client: Optional[VisionClient] = None,
+        symbol_for_api: Optional[str] = None,
     ) -> List[BarData]:
         """
         Download from data.binance.vision
         """
-        symbol = req.symbol.upper()
+        # Use provided client and symbol, or fall back to defaults (for backward compatibility)
+        if vision_client is None:
+            vision_client = self.vision_client
+        if symbol_for_api is None:
+            symbol_for_api = req.symbol.upper()
+
+        # Keep full symbol for BarData
+        symbol_for_bar = req.symbol.upper()
 
         start_date = start_time.date()
         end_date = end_time.date()
@@ -178,17 +274,17 @@ class BinanceDatafeed(BaseDatafeed):
             year = current_date.year
             month = current_date.month
 
-            output(f"正在从Vision下载 {symbol} {year}-{month:02d} 的数据...")
+            output(f"正在从Vision下载 {symbol_for_api} {year}-{month:02d} 的数据...")
 
-            zip_data = self.vision_client.download_klines(
-                symbol, binance_interval, year, month
+            zip_data = vision_client.download_klines(
+                symbol_for_api, binance_interval, year, month
             )
             if zip_data:
-                checksum = self.vision_client.get_checksum(
-                    symbol, binance_interval, year, month
+                checksum = vision_client.get_checksum(
+                    symbol_for_api, binance_interval, year, month
                 )
                 if checksum:
-                    if not self.vision_client.verify_checksum(zip_data, checksum):
+                    if not vision_client.verify_checksum(zip_data, checksum):
                         output(f"校验和验证失败: {year}-{month:02d}")
                         # Move to next month
                         if month == 12:
@@ -205,7 +301,7 @@ class BinanceDatafeed(BaseDatafeed):
                                 raw_klines = parse_kline_csv(csv_data)
                                 for raw in raw_klines:
                                     bar = convert_to_bar_data(
-                                        raw, symbol, req.exchange, interval
+                                        raw, symbol_for_bar, req.exchange, interval
                                     )
 
                                     # Use date comparison to avoid timezone issues
@@ -234,11 +330,20 @@ class BinanceDatafeed(BaseDatafeed):
         end_time: datetime,
         interval: Interval,
         output: Callable = print,
+        rest_client: Optional[BinanceRestClient] = None,
+        symbol_for_api: Optional[str] = None,
     ) -> List[BarData]:
         """
         Download from REST API
         """
-        symbol = req.symbol.upper()
+        # Use provided client and symbol, or fall back to defaults (for backward compatibility)
+        if rest_client is None:
+            rest_client = self.rest_client
+        if symbol_for_api is None:
+            symbol_for_api = req.symbol.upper()
+
+        # Keep full symbol for BarData
+        symbol_for_bar = req.symbol.upper()
 
         start_ts = int(start_time.timestamp() * 1000)
         end_ts = int(end_time.timestamp() * 1000)
@@ -248,11 +353,11 @@ class BinanceDatafeed(BaseDatafeed):
 
         while current_start < end_ts:
             output(
-                f"正在从REST API下载 {symbol} 数据，起始时间: {datetime.fromtimestamp(current_start / 1000)}"
+                f"正在从REST API下载 {symbol_for_api} 数据，起始时间: {datetime.fromtimestamp(current_start / 1000)}"
             )
 
-            raw_klines = self.rest_client.get_klines(
-                symbol=symbol,
+            raw_klines = rest_client.get_klines(
+                symbol=symbol_for_api,
                 interval=binance_interval,
                 start_time=current_start,
                 end_time=end_ts,
@@ -263,7 +368,7 @@ class BinanceDatafeed(BaseDatafeed):
                 break
 
             for raw in raw_klines:
-                bar = convert_to_bar_data(raw, symbol, req.exchange, interval)
+                bar = convert_to_bar_data(raw, symbol_for_bar, req.exchange, interval)
 
                 # Filter by time range
                 if start_time <= bar.datetime < end_time:
