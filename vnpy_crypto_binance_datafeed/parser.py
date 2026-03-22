@@ -1,10 +1,15 @@
 import csv
 import io
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import List, Dict, Any
 
 from vnpy.trader.object import BarData
 from vnpy.trader.constant import Exchange, Interval
+
+
+# UTC timezone constant (consistent with vnpy_binance gateway)
+UTC_TZ = ZoneInfo("UTC")
 
 
 def parse_kline_csv(data: bytes) -> List[Dict[str, Any]]:
@@ -90,17 +95,17 @@ def generate_datetime(timestamp: int) -> datetime:
     """
     Generate datetime from timestamp.
     Handle milliseconds and microseconds (from 2025).
+
+    Returns UTC-aware datetime to be consistent with vnpy_binance gateway.
     """
     # 2025-01-01 00:00:00 in milliseconds is 1735689600000
     # If timestamp > 10^14, it's likely microseconds
     if timestamp > 10**14:
-        dt = datetime.fromtimestamp(timestamp / 1000000)
+        dt = datetime.fromtimestamp(timestamp / 1000000, tz=UTC_TZ)
     else:
-        dt = datetime.fromtimestamp(timestamp / 1000)
+        dt = datetime.fromtimestamp(timestamp / 1000, tz=UTC_TZ)
 
-    # vnpy usually uses naive datetime in local time or UTC depending on configuration.
-    # Most vnpy gateways use naive datetime.
-    return dt
+    return dt  # UTC-aware datetime
 
 
 def convert_to_bar_data(
