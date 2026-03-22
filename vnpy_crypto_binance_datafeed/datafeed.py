@@ -151,7 +151,7 @@ class BinanceDatafeed(BaseDatafeed):
             output(f"不支持的K线周期: {interval}")
             return []
 
-        # Check if data already exists in database
+        # Load existing data from database
         existing_bars = self.database.load_bar_data(
             symbol=req.symbol,
             exchange=req.exchange,
@@ -160,77 +160,104 @@ class BinanceDatafeed(BaseDatafeed):
             end=end_time,
         )
 
-        if existing_bars:
-            output(f"数据库中已存在 {len(existing_bars)} 根K线数据，跳过下载")
+        # Find gaps in existing data based on requested interval
+        gaps = self._find_gaps(existing_bars, start_time, end_time, interval)
+
+        if not gaps:
+            output(f"数据库中已有完整数据 ({len(existing_bars)} 根K线)，跳过下载")
             return existing_bars
 
-        # Determine data source
-        source = self._determine_data_source(start_time, end_time)
+        output(f"检测到 {len(gaps)} 个数据缺口，开始补全...")
 
-        bars = []
-        if source == "vision":
-            bars = self._download_from_vision(
-                req,
-                binance_interval,
-                start_time,
-                end_time,
-                interval,
-                output,
-                vision_client=vision_client,
-                symbol_for_api=symbol_for_api,
-            )
-        elif source == "rest":
-            bars = self._download_from_rest(
-                req,
-                binance_interval,
-                start_time,
-                end_time,
-                interval,
-                output,
-                rest_client=rest_client,
-                symbol_for_api=symbol_for_api,
-            )
-        elif source == "both":
-            bars_vision = self._download_from_vision(
-                req,
-                binance_interval,
-                start_time,
-                end_time,
-                interval,
-                output,
-                vision_client=vision_client,
-                symbol_for_api=symbol_for_api,
-            )
-            bars_rest = self._download_from_rest(
-                req,
-                binance_interval,
-                start_time,
-                end_time,
-                interval,
-                output,
-                rest_client=rest_client,
-                symbol_for_api=symbol_for_api,
-            )
-            # Merge and deduplicate
-            bars_dict = {bar.datetime: bar for bar in bars_vision}
-            for bar in bars_rest:
-                bars_dict[bar.datetime] = bar
-            bars = list(bars_dict.values())
-            bars.sort(key=lambda x: x.datetime)
+        # Download data for each gap
+        all_new_bars: List[BarData] = []
+        for gap_start, gap_end in gaps:
+            output(f"正在补全缺口: {gap_start} 到 {gap_end}")
 
-        if bars:
-            self._save_to_database(bars)
-            output(f"成功下载并保存 {len(bars)} 根K线数据")
+            # Determine data source for this gap
+            source = self._determine_data_source(gap_start, gap_end)
+
+            if source == "vision":
+                new_bars = self._download_from_vision(
+                    req,
+                    binance_interval,
+                    gap_start,
+                    gap_end,
+                    interval,
+                    output,
+                    vision_client=vision_client,
+                    symbol_for_api=symbol_for_api,
+                )
+            elif source == "rest":
+                new_bars = self._download_from_rest(
+                    req,
+                    binance_interval,
+                    gap_start,
+                    gap_end,
+                    interval,
+                    output,
+                    rest_client=rest_client,
+                    symbol_for_api=symbol_for_api,
+                )
+            elif source == "both":
+                bars_vision = self._download_from_vision(
+                    req,
+                    binance_interval,
+                    gap_start,
+                    gap_end,
+                    interval,
+                    output,
+                    vision_client=vision_client,
+                    symbol_for_api=symbol_for_api,
+                )
+                bars_rest = self._download_from_rest(
+                    req,
+                    binance_interval,
+                    gap_start,
+                    gap_end,
+                    interval,
+                    output,
+                    rest_client=rest_client,
+                    symbol_for_api=symbol_for_api,
+                )
+                # Merge and deduplicate
+                new_bars_dict = {bar.datetime: bar for bar in bars_vision}
+                for bar in bars_rest:
+                    new_bars_dict[bar.datetime] = bar
+                new_bars = list(new_bars_dict.values())
+                new_bars.sort(key=lambda x: x.datetime)
+            else:
+                new_bars = []
+
+            all_new_bars.extend(new_bars)
+
+        # Merge existing and new data, deduplicate by datetime
+        all_bars_dict = {bar.datetime: bar for bar in existing_bars}
+        for bar in all_new_bars:
+            all_bars_dict[bar.datetime] = bar
+        all_bars = list(all_bars_dict.values())
+        all_bars.sort(key=lambda x: x.datetime)
+
+        # Save new data only
+        if all_new_bars:
+            self._save_to_database(all_new_bars)
+            output(f"成功补全 {len(all_new_bars)} 根K线数据")
         else:
-            output("未下载到任何数据")
+            output("未下载到任何新数据")
 
-        return bars
+        return all_bars
 
     def _determine_data_source(self, start: datetime, end: datetime) -> str:
         """
         Choose vision vs rest
         """
-        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        # If end has timezone info, use the same timezone for comparison
+        if end.tzinfo is not None:
+            tz = end.tzinfo
+            today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
         yesterday = today - timedelta(days=1)
 
         if end < yesterday:
@@ -390,3 +417,63 @@ class BinanceDatafeed(BaseDatafeed):
             return
 
         self.database.save_bar_data(bars)
+
+    def _get_interval_delta(self, interval: Interval) -> timedelta:
+        """
+        Get timedelta for interval - determines gap detection granularity.
+        """
+        if interval == Interval.MINUTE:
+            return timedelta(minutes=1)
+        elif interval == Interval.HOUR:
+            return timedelta(hours=1)
+        elif interval == Interval.DAILY:
+            return timedelta(days=1)
+        else:
+            return timedelta(minutes=1)  # Default
+
+    def _find_gaps(
+        self,
+        existing_bars: List[BarData],
+        start: datetime,
+        end: datetime,
+        interval: Interval,
+    ) -> List[tuple[datetime, datetime]]:
+        """
+        Find time gaps in existing data based on the requested interval.
+
+        Gap granularity is determined by interval:
+        - MINUTE: detect missing minutes
+        - HOUR: detect missing hours
+        - DAILY: detect missing days
+
+        Returns list of (gap_start, gap_end) tuples.
+        """
+        if not existing_bars:
+            return [(start, end)]
+
+        # Get interval delta based on requested interval
+        interval_delta = self._get_interval_delta(interval)
+
+        # Build set of existing timestamps
+        existing_times = {bar.datetime for bar in existing_bars}
+
+        # Find gaps
+        gaps: List[tuple[datetime, datetime]] = []
+        current = start
+        gap_start = None
+
+        while current <= end:
+            if current not in existing_times:
+                if gap_start is None:
+                    gap_start = current
+            else:
+                if gap_start is not None:
+                    gaps.append((gap_start, current - interval_delta))
+                    gap_start = None
+            current += interval_delta
+
+        # Handle gap at end
+        if gap_start is not None:
+            gaps.append((gap_start, end))
+
+        return gaps
