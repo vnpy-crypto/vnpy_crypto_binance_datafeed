@@ -145,22 +145,23 @@ def load_binance_data() -> Dict[datetime, Dict[str, Any]]:
             break
 
     # Convert to dict with datetime as key
+    # Store as aware datetime in DB_TZ for proper matching with vnpy data
     result: Dict[datetime, Dict[str, Any]] = {}
     for kline in all_klines:
         # Binance returns UTC timestamp in milliseconds
         open_time_ms = kline["open_time"]
         dt = datetime.fromtimestamp(open_time_ms / 1000, tz=UTC_TZ)
 
-        # Remove tz info to get naive UTC datetime for comparison
-        dt_naive = dt.replace(tzinfo=None)
+        # Convert UTC to DB_TZ (Asia/Shanghai)
+        dt_db_tz = dt.astimezone(DB_TZ)
 
-        result[dt_naive] = {
-            "open_price": kline["open"],
-            "high_price": kline["high"],
-            "low_price": kline["low"],
-            "close_price": kline["close"],
-            "volume": kline["volume"],
-            "turnover": kline["turnover"],
+        result[dt_db_tz] = {
+            "open_price": float(kline["open"]),
+            "high_price": float(kline["high"]),
+            "low_price": float(kline["low"]),
+            "close_price": float(kline["close"]),
+            "volume": float(kline["volume"]),
+            "turnover": float(kline["turnover"]),
         }
 
     return result
@@ -242,18 +243,11 @@ def compare_data(
     Compare vnpy and binance data.
 
     Returns report with summary, differences, and missing entries.
+    Both vnpy_data and binance_data now use aware datetime (DB_TZ) as keys.
     """
-    # Normalize keys for matching
-    # Binance uses UTC, vnpy uses DB_TZ (Asia/Shanghai)
-    # When comparing, we shift binance datetime by +8 hours to match vnpy
-    normalized_binance: Dict[datetime, Dict[str, Any]] = {}
-    for dt, bar in binance_data.items():
-        normalized_dt = normalize_datetime(dt)
-        normalized_binance[normalized_dt] = bar
-
-    # Get all timestamps
+    # Get all timestamps - both are now in DB_TZ timezone
     vnpy_times = set(vnpy_data.keys())
-    binance_times = set(normalized_binance.keys())
+    binance_times = set(binance_data.keys())
 
     common_times = vnpy_times & binance_times
     missing_from_vnpy = sorted(binance_times - vnpy_times)
@@ -265,7 +259,7 @@ def compare_data(
 
     for dt in sorted(common_times):
         vnpy_bar = vnpy_data[dt]
-        binance_bar = normalized_binance[dt]
+        binance_bar = binance_data[dt]
         diffs = compare_bars(vnpy_bar, binance_bar)
 
         if diffs:
