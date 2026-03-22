@@ -249,21 +249,17 @@ class BinanceDatafeed(BaseDatafeed):
 
             all_new_bars.extend(new_bars)
 
-        # Merge existing and new data, deduplicate by datetime
-        all_bars_dict = {bar.datetime: bar for bar in existing_bars}
-        for bar in all_new_bars:
-            all_bars_dict[bar.datetime] = bar
-        all_bars = list(all_bars_dict.values())
-        all_bars.sort(key=lambda x: x.datetime)
-
-        # Save new data only
+        # Following vnpy's design pattern: datafeed only returns newly downloaded data,
+        # the caller (vnpy_datamanager) is responsible for saving to database.
         if all_new_bars:
-            self._save_to_database(all_new_bars)
-            self._log_info(f"成功补全 {len(all_new_bars)} 根K线数据")
+            self._log_info(f"成功下载 {len(all_new_bars)} 根K线数据")
         else:
             self._log_warning("未下载到任何新数据")
+            # Return empty list to indicate no new data
+            if existing_bars:
+                self._log_info(f"数据库中已有完整数据 ({len(existing_bars)} 根K线)")
 
-        return all_bars
+        return all_new_bars
 
     def _determine_data_source(self, start: datetime, end: datetime) -> str:
         """
