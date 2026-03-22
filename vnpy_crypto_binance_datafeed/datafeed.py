@@ -196,7 +196,8 @@ class BinanceDatafeed(BaseDatafeed):
             source = self._determine_data_source(gap_start, gap_end)
 
             if source == "vision":
-                new_bars = self._download_from_vision(
+                # Unpack tuple: (bars_vision, missing_months)
+                bars_vision, missing_months = self._download_from_vision(
                     req,
                     binance_interval,
                     gap_start,
@@ -206,6 +207,43 @@ class BinanceDatafeed(BaseDatafeed):
                     vision_client=vision_client,
                     symbol_for_api=symbol_for_api,
                 )
+                new_bars = bars_vision
+
+                # Smart fallback: only download missing months via REST
+                if missing_months:
+                    self._log_warning(
+                        f"Vision缺失 {len(missing_months)} 个月份，使用REST API补充"
+                    )
+                    for month_start_date, month_end_date in missing_months:
+                        # Convert date to datetime for REST API
+                        month_start_dt = datetime.combine(
+                            month_start_date, datetime.min.time()
+                        )
+                        month_end_dt = datetime.combine(
+                            month_end_date, datetime.max.time()
+                        )
+
+                        # Clip to gap boundaries (don't download outside requested range)
+                        actual_start = max(month_start_dt, gap_start)
+                        actual_end = min(month_end_dt, gap_end)
+
+                        if actual_start < actual_end:
+                            bars_rest = self._download_from_rest(
+                                req,
+                                binance_interval,
+                                actual_start,
+                                actual_end,
+                                interval,
+                                output,
+                                rest_client=rest_client,
+                                symbol_for_api=symbol_for_api,
+                            )
+                            new_bars.extend(bars_rest)
+
+                    # Deduplicate by datetime (in case of overlap)
+                    new_bars_dict = {bar.datetime: bar for bar in new_bars}
+                    new_bars = list(new_bars_dict.values())
+                    new_bars.sort(key=lambda x: x.datetime)
             elif source == "rest":
                 new_bars = self._download_from_rest(
                     req,
@@ -218,7 +256,7 @@ class BinanceDatafeed(BaseDatafeed):
                     symbol_for_api=symbol_for_api,
                 )
             elif source == "both":
-                bars_vision = self._download_from_vision(
+                bars_vision, _ = self._download_from_vision(
                     req,
                     binance_interval,
                     gap_start,
@@ -291,7 +329,7 @@ class BinanceDatafeed(BaseDatafeed):
         output: Callable = print,
         vision_client: Optional[VisionClient] = None,
         symbol_for_api: Optional[str] = None,
-    ) -> List[BarData]:
+    ) -> tuple[List[BarData], List[tuple[date, date]]]:
         """
         Download from data.binance.vision
         """
@@ -310,6 +348,7 @@ class BinanceDatafeed(BaseDatafeed):
         current_date = start_date.replace(day=1)
 
         bars = []
+        missing_months: List[tuple[date, date]] = []
 
         while current_date <= end_date:
             year = current_date.year
@@ -356,6 +395,8 @@ class BinanceDatafeed(BaseDatafeed):
                     self._log_error(f"处理ZIP文件时发生错误: {e}", output)
             else:
                 self._log_warning(f"未能下载 {year}-{month:02d} 的数据，可能尚未生成")
+                month_end = self._get_last_day_of_month(current_date)
+                missing_months.append((current_date, month_end))
 
             # Move to next month
             if month == 12:
@@ -363,7 +404,14 @@ class BinanceDatafeed(BaseDatafeed):
             else:
                 current_date = current_date.replace(month=month + 1)
 
-        return bars
+        return bars, missing_months
+
+    def _get_last_day_of_month(self, d: date) -> date:
+        """Get the last day of the month for a given date."""
+        if d.month == 12:
+            return date(d.year + 1, 1, 1) - timedelta(days=1)
+        else:
+            return date(d.year, d.month + 1, 1) - timedelta(days=1)
 
     def _download_from_rest(
         self,
