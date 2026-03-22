@@ -223,6 +223,13 @@ class BinanceDatafeed(BaseDatafeed):
                             month_end_date, datetime.max.time()
                         )
 
+                        # Ensure timezone consistency: if gap_start has tzinfo, apply it
+                        if gap_start.tzinfo is not None:
+                            month_start_dt = month_start_dt.replace(
+                                tzinfo=gap_start.tzinfo
+                            )
+                            month_end_dt = month_end_dt.replace(tzinfo=gap_start.tzinfo)
+
                         # Clip to gap boundaries (don't download outside requested range)
                         actual_start = max(month_start_dt, gap_start)
                         actual_end = min(month_end_dt, gap_end)
