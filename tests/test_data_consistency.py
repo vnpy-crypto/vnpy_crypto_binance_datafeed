@@ -174,22 +174,23 @@ def load_binance_data() -> Dict[datetime, Dict[str, Any]]:
 def normalize_datetime(dt: datetime) -> datetime:
     """
     Normalize datetime to naive for comparison.
-    vnpy stores naive datetime in DB_TZ, Binance API returns UTC.
-    We need to compare them as if they're in the same timezone.
 
-    For this comparison, we convert UTC naive to DB_TZ naive directly
-    by changing the timezone info, NOT by adding hours.
+    The issue is that:
+    - Binance API returns UTC timestamps
+    - vnpy stores datetimes as Asia/Shanghai timezone
+
+    For proper comparison, we need to convert UTC -> DB_TZ using astimezone.
     """
     if dt.tzinfo is not None:
-        dt = dt.replace(tzinfo=None)
+        # Convert to DB_TZ timezone
+        dt = dt.astimezone(DB_TZ)
+        # Return as naive datetime
+        return dt.replace(tzinfo=None)
 
-    # Assume Binance data is UTC, convert to DB_TZ by changing timezone
-    # Change from UTC to DB_TZ (Asia/Shanghai = UTC+8)
-    # dt.replace(tzinfo=DB_TZ) will automatically adjust the time correctly
-    dt_in_db_tz = dt.replace(tzinfo=DB_TZ)
-
-    # Return as naive datetime for comparison
-    return dt_in_db_tz.replace(tzinfo=None)
+    # If naive, assume it's UTC and convert properly
+    dt_utc = dt.replace(tzinfo=UTC_TZ)
+    dt_db_tz = dt_utc.astimezone(DB_TZ)
+    return dt_db_tz.replace(tzinfo=None)
 
 
 def compare_floats(a: float, b: float) -> bool:
