@@ -5,7 +5,7 @@ import io
 
 from vnpy.trader.datafeed import BaseDatafeed
 from vnpy.trader.object import HistoryRequest, BarData
-from vnpy.trader.database import get_database, BaseDatabase
+from vnpy.trader.database import get_database, BaseDatabase, DB_TZ
 from vnpy.trader.constant import Exchange, Interval
 from vnpy.trader.logger import logger
 
@@ -464,6 +464,13 @@ class BinanceDatafeed(BaseDatafeed):
 
         Returns list of (gap_start, gap_end) tuples.
         """
+        # Normalize timezone: add DB_TZ to naive datetimes
+        # This ensures consistency with database-loaded aware datetimes
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=DB_TZ)
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=DB_TZ)
+
         if not existing_bars:
             return [(start, end)]
 
