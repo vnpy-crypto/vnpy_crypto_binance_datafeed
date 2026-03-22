@@ -7,6 +7,7 @@ from vnpy.trader.datafeed import BaseDatafeed
 from vnpy.trader.object import HistoryRequest, BarData
 from vnpy.trader.database import get_database, BaseDatabase
 from vnpy.trader.constant import Exchange, Interval
+from vnpy.trader.logger import logger
 
 from vnpy.trader.setting import SETTINGS
 from .vision_client import VisionClient
@@ -60,6 +61,19 @@ class BinanceDatafeed(BaseDatafeed):
         # Backward compatibility: combined symbols
         self.symbols: set[str] = set()
 
+    def _log_info(self, msg: str) -> None:
+        """Log INFO message (no popup)."""
+        logger.info(msg)
+
+    def _log_warning(self, msg: str) -> None:
+        """Log WARNING message (no popup)."""
+        logger.warning(msg)
+
+    def _log_error(self, msg: str, output: Callable) -> None:
+        """Log ERROR message AND call output (popup)."""
+        logger.error(msg)
+        output(msg)
+
     def init(self, output: Callable = print) -> bool:
         """
         Initialize datafeed service connection.
@@ -68,10 +82,10 @@ class BinanceDatafeed(BaseDatafeed):
             return True
 
         try:
-            output("正在初始化Binance数据服务...")
+            self._log_info("正在初始化Binance数据服务...")
 
             # Load SPOT symbols
-            output("正在加载现货合约信息...")
+            self._log_info("正在加载现货合约信息...")
             spot_info = self.spot_rest_client.get_exchange_info()
             for symbol_data in spot_info.get("symbols", []):
                 base_symbol = symbol_data["symbol"]
@@ -80,7 +94,7 @@ class BinanceDatafeed(BaseDatafeed):
                 self.spot_symbols.add(f"{base_symbol}_SPOT_BINANCE")
 
             # Load SWAP symbols
-            output("正在加载期货合约信息...")
+            self._log_info("正在加载期货合约信息...")
             swap_info = self.swap_rest_client.get_exchange_info()
             for symbol_data in swap_info.get("symbols", []):
                 base_symbol = symbol_data["symbol"]
@@ -91,12 +105,12 @@ class BinanceDatafeed(BaseDatafeed):
             self.symbols = self.spot_symbols | self.swap_symbols
 
             self.inited = True
-            output(
+            self._log_info(
                 f"Binance数据服务初始化成功，加载了 {len(self.spot_symbols)} 个现货合约和 {len(self.swap_symbols)} 个期货合约"
             )
             return True
         except Exception as e:
-            output(f"Binance数据服务初始化失败: {e}")
+            self._log_error(f"Binance数据服务初始化失败: {e}", output)
             return False
 
     def query_bar_history(
@@ -112,7 +126,9 @@ class BinanceDatafeed(BaseDatafeed):
         parsed = parse_vt_symbol(req.symbol.upper())
 
         if parsed is None:
-            output("合约代码格式错误，应为 XXX_SPOT_BINANCE 或 XXX_SWAP_BINANCE")
+            self._log_error(
+                "合约代码格式错误，应为 XXX_SPOT_BINANCE 或 XXX_SWAP_BINANCE", output
+            )
             return []
 
         # Select clients based on market_type
@@ -126,7 +142,7 @@ class BinanceDatafeed(BaseDatafeed):
         # Validate symbol (strip .GLOBAL suffix for validation)
         symbol_for_validation = parsed.full_symbol.replace(".GLOBAL", "")
         if self.symbols and symbol_for_validation not in self.symbols:
-            output(f"不支持的合约代码: {parsed.full_symbol}")
+            self._log_error(f"不支持的合约代码: {parsed.full_symbol}", output)
             return []
 
         # Use parsed.base for API calls
@@ -138,7 +154,7 @@ class BinanceDatafeed(BaseDatafeed):
         interval: Optional[Interval] = req.interval
 
         if interval is None:
-            output("K线周期不能为空")
+            self._log_error("K线周期不能为空", output)
             return []
 
         # Validate interval and get Binance interval string
@@ -148,7 +164,7 @@ class BinanceDatafeed(BaseDatafeed):
         elif hasattr(interval, "value") and interval.value in SUPPORTED_INTERVALS:
             binance_interval = str(interval.value)
         else:
-            output(f"不支持的K线周期: {interval}")
+            self._log_error(f"不支持的K线周期: {interval}", output)
             return []
 
         # Load existing data from database
@@ -164,15 +180,17 @@ class BinanceDatafeed(BaseDatafeed):
         gaps = self._find_gaps(existing_bars, start_time, end_time, interval)
 
         if not gaps:
-            output(f"数据库中已有完整数据 ({len(existing_bars)} 根K线)，跳过下载")
+            self._log_info(
+                f"数据库中已有完整数据 ({len(existing_bars)} 根K线)，跳过下载"
+            )
             return existing_bars
 
-        output(f"检测到 {len(gaps)} 个数据缺口，开始补全...")
+        self._log_info(f"检测到 {len(gaps)} 个数据缺口，开始补全...")
 
         # Download data for each gap
         all_new_bars: List[BarData] = []
         for gap_start, gap_end in gaps:
-            output(f"正在补全缺口: {gap_start} 到 {gap_end}")
+            self._log_info(f"正在补全缺口: {gap_start} 到 {gap_end}")
 
             # Determine data source for this gap
             source = self._determine_data_source(gap_start, gap_end)
@@ -241,9 +259,9 @@ class BinanceDatafeed(BaseDatafeed):
         # Save new data only
         if all_new_bars:
             self._save_to_database(all_new_bars)
-            output(f"成功补全 {len(all_new_bars)} 根K线数据")
+            self._log_info(f"成功补全 {len(all_new_bars)} 根K线数据")
         else:
-            output("未下载到任何新数据")
+            self._log_warning("未下载到任何新数据")
 
         return all_bars
 
@@ -301,7 +319,9 @@ class BinanceDatafeed(BaseDatafeed):
             year = current_date.year
             month = current_date.month
 
-            output(f"正在从Vision下载 {symbol_for_api} {year}-{month:02d} 的数据...")
+            self._log_info(
+                f"正在从Vision下载 {symbol_for_api} {year}-{month:02d} 的数据..."
+            )
 
             zip_data = vision_client.download_klines(
                 symbol_for_api, binance_interval, year, month
@@ -312,7 +332,7 @@ class BinanceDatafeed(BaseDatafeed):
                 )
                 if checksum:
                     if not vision_client.verify_checksum(zip_data, checksum):
-                        output(f"校验和验证失败: {year}-{month:02d}")
+                        self._log_error(f"校验和验证失败: {year}-{month:02d}", output)
                         # Move to next month
                         if month == 12:
                             current_date = current_date.replace(year=year + 1, month=1)
@@ -335,11 +355,11 @@ class BinanceDatafeed(BaseDatafeed):
                                     if start_time <= bar.datetime <= end_time:
                                         bars.append(bar)
                 except zipfile.BadZipFile:
-                    output(f"下载的ZIP文件损坏: {year}-{month:02d}")
+                    self._log_error(f"下载的ZIP文件损坏: {year}-{month:02d}", output)
                 except Exception as e:
-                    output(f"处理ZIP文件时发生错误: {e}")
+                    self._log_error(f"处理ZIP文件时发生错误: {e}", output)
             else:
-                output(f"未能下载 {year}-{month:02d} 的数据，可能尚未生成")
+                self._log_warning(f"未能下载 {year}-{month:02d} 的数据，可能尚未生成")
 
             # Move to next month
             if month == 12:
@@ -379,7 +399,7 @@ class BinanceDatafeed(BaseDatafeed):
         current_start = start_ts
 
         while current_start < end_ts:
-            output(
+            self._log_info(
                 f"正在从REST API下载 {symbol_for_api} 数据，起始时间: {datetime.fromtimestamp(current_start / 1000)}"
             )
 
