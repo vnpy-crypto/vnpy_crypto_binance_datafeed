@@ -12,7 +12,7 @@ from vnpy.trader.logger import logger
 from vnpy.trader.setting import SETTINGS
 from .vision_client import VisionClient
 from .rest_client import BinanceRestClient
-from .parser import parse_kline_csv, convert_to_bar_data
+from .parser import parse_kline_csv, convert_to_bar_data, UTC_TZ
 from .constant import (
     INTERVAL_VT2BINANCE,
     SUPPORTED_INTERVALS,
@@ -349,8 +349,8 @@ class BinanceDatafeed(BaseDatafeed):
         # Keep full symbol for BarData
         symbol_for_bar = req.symbol.upper()
 
-        start_date = start_time.date()
-        end_date = end_time.date()
+        start_date = start_time.astimezone(UTC_TZ).date()
+        end_date = end_time.astimezone(UTC_TZ).date()
 
         current_date = start_date.replace(day=1)
 
