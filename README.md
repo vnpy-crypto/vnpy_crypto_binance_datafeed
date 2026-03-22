@@ -118,7 +118,35 @@ print(f"下载了 {len(bars)} 根K线")
 
 ## 配置
 
-无需额外配置，模块会自动：
+### 全局配置（GUI 使用必须）
+
+在 VeighNa 的全局配置文件 `vt_setting.json` 中添加：
+
+```json
+{
+    "datafeed.name": "crypto_binance_datafeed"
+}
+```
+
+**配置文件位置**：
+- Windows: `C:\Users\<用户名>\.vntrader\vt_setting.json`
+- Linux/Mac: `~/.vntrader/vt_setting.json`
+
+> ⚠️ **重要**：如果不配置 `datafeed.name`，GUI 的数据管理功能将无法使用此模块。
+
+### 可选配置
+
+```json
+{
+    "binance.market_type": "SPOT"
+}
+```
+
+可选值：`SPOT`（现货，默认）、`SWAP`（永续合约）
+
+### 自动功能
+
+模块会自动：
 - 初始化时加载 Binance 合约列表
 - 根据合约代码识别市场类型
 - 选择正确的 API 端点
