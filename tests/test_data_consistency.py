@@ -9,7 +9,7 @@ import math
 import csv
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
@@ -177,18 +177,19 @@ def normalize_datetime(dt: datetime) -> datetime:
     vnpy stores naive datetime in DB_TZ, Binance API returns UTC.
     We need to compare them as if they're in the same timezone.
 
-    For this comparison, we convert UTC naive to DB_TZ naive by adding 8 hours.
-    This is because 2026-01-01 00:00:00 UTC = 2026-01-01 08:00:00 Asia/Shanghai.
+    For this comparison, we convert UTC naive to DB_TZ naive directly
+    by changing the timezone info, NOT by adding hours.
     """
     if dt.tzinfo is not None:
         dt = dt.replace(tzinfo=None)
 
-    # Assume Binance data is UTC, convert to DB_TZ by adding 8 hours
-    # This aligns UTC timestamps to Asia/Shanghai timezone
-    dt_shifted = dt.replace(hour=dt.hour + 8)
-    if dt_shifted.hour < dt.hour:  # Overflow handling for next day
-        dt_shifted = dt_shifted.replace(day=dt.day + 1)
-    return dt_shifted
+    # Assume Binance data is UTC, convert to DB_TZ by changing timezone
+    # Change from UTC to DB_TZ (Asia/Shanghai = UTC+8)
+    # dt.replace(tzinfo=DB_TZ) will automatically adjust the time correctly
+    dt_in_db_tz = dt.replace(tzinfo=DB_TZ)
+
+    # Return as naive datetime for comparison
+    return dt_in_db_tz.replace(tzinfo=None)
 
 
 def compare_floats(a: float, b: float) -> bool:
