@@ -20,8 +20,6 @@ pip install -e .
 
 ## 合约代码格式
 
-合约代码格式: `{原始代码}_{SPOT|SWAP}_BINANCE`
-
 | 市场 | 格式 | 示例 |
 |------|------|------|
 | 现货 | `{SYMBOL}_SPOT_BINANCE` | `BTCUSDT_SPOT_BINANCE` |
@@ -52,6 +50,21 @@ pip install -e .
 | 跨越边界 | Vision + REST | 两者结合，自动合并去重 |
 
 ## 使用方法
+
+## 配置
+
+### GUI 全局配置
+
+在 VeighNa Trader 中配置 datafeed：
+
+1. 启动 VeighNa Trader
+2. 点击菜单 **配置**
+3. 找到 **datafeed.name** 配置项
+4. 填入：`crypto_binance_datafeed`
+5. 点击确定
+
+> ⚠️ **重要**：如果不配置 `datafeed.name`，GUI 的数据管理功能将无法使用此模块。
+
 
 ### 通过 GUI 使用
 
@@ -116,27 +129,6 @@ print(f"下载了 {len(bars)} 根K线")
 | 返回数据 | UTC-aware | parser 处理 |
 | 数据库存储 | naive (实际 DB_TZ) | convert_tz 转换 |
 
-## 配置
-
-### GUI 全局配置
-
-在 VeighNa Trader 中配置 datafeed：
-
-1. 启动 VeighNa Trader
-2. 点击菜单 **系统** → **全局配置**
-3. 找到 **datafeed.name** 配置项
-4. 填入：`crypto_binance_datafeed`
-5. 点击保存
-
-> ⚠️ **重要**：如果不配置 `datafeed.name`，GUI 的数据管理功能将无法使用此模块。
-
-### 可选配置
-
-在全局配置中还可以设置：
-
-| 配置项 | 默认值 | 说明 |
-|--------|--------|------|
-| `binance.market_type` | `SPOT` | 市场类型：`SPOT`（现货）或 `SWAP`（永续合约）|
 
 ### 自动功能
 
@@ -159,26 +151,6 @@ print(f"下载了 {len(bars)} 根K线")
 
 确保使用支持的时间周期：`1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d`
 
-### 错误: "can't compare offset-naive and offset-aware datetimes"
-
-这是时区比较问题，已在最新版本中修复。请更新到最新版本。
-
-## 项目结构
-
-```
-vnpy_crypto_binance_datafeed/
-├── vnpy_crypto_binance_datafeed/
-│   ├── __init__.py
-│   ├── datafeed.py        # 主要数据下载逻辑
-│   ├── parser.py          # 数据解析和时区处理
-│   ├── constant.py        # 常量定义
-│   ├── rest_client.py     # REST API 客户端
-│   └── vision_client.py   # data.binance.vision 客户端
-├── tests/
-│   └── test_datafeed.py
-├── README.md
-└── pyproject.toml
-```
 
 ## 依赖
 
