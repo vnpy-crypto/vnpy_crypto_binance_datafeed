@@ -361,6 +361,22 @@ class BinanceDatafeed(BaseDatafeed):
             year = current_date.year
             month = current_date.month
 
+            # Skip Vision for current month (monthly data not generated yet)
+            today = date.today()
+            if year == today.year and month == today.month:
+                self._log_info(
+                    f"跳过当前月份 {year}-{month:02d} 的 Vision 下载（月度数据尚未生成）"
+                )
+                month_end = self._get_last_day_of_month(current_date)
+                missing_months.append((current_date, month_end))
+
+                # Move to next month
+                if month == 12:
+                    current_date = current_date.replace(year=year + 1, month=1)
+                else:
+                    current_date = current_date.replace(month=month + 1)
+                continue
+
             self._log_info(
                 f"正在从Vision下载 {symbol_for_api} {year}-{month:02d} 的数据..."
             )
