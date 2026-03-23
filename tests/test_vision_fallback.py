@@ -90,20 +90,19 @@ def test_timezone_offset_in_date_extraction():
     Test that timezone offset is correctly handled when extracting year/month for Vision download.
 
     Beijing time 2024-01-01 00:00:00 (Asia/Shanghai, UTC+8) = UTC 2023-12-31 16:00:00
-    So the code should download month 2023-12 (December), NOT 2024-01 (January).
+        So the code should download month 2023-12 ( NOT 2024-01.
 
-    This test verifies the bug: current code uses .date() directly without UTC conversion,
-    causing it to download the wrong month when timezone offset crosses month boundary.
+        This test verifies the bug: current code uses .date() directly without UTC conversion,
+        causing it to download the wrong month when timezone offset crosses month boundary.
     """
     df = BinanceDatafeed()
 
     # Create timezone-aware datetime in Beijing time (Asia/Shanghai, UTC+8)
     # Beijing 2024-01-01 00:00:00 = UTC 2023-12-31 16:00:00
     beijing_time = datetime(2024, 1, 1, 0, 0, tzinfo=ZoneInfo("Asia/Shanghai"))
-
-    # Same date for end time (single month download)
     end_time = datetime(2024, 1, 1, 23, 59, tzinfo=ZoneInfo("Asia/Shanghai"))
 
+    # Same date for end time (single month download)
     req = HistoryRequest(
         symbol="BTCUSDT_SPOT_BINANCE",
         exchange=Exchange.GLOBAL,
@@ -115,11 +114,6 @@ def test_timezone_offset_in_date_extraction():
     with patch.object(df, "vision_client") as mock_client:
         # Mock download_klines to return None (simulating no data, but captures call)
         mock_client.download_klines.return_value = None
-
-        # Also mock the checksum methods to avoid errors
-        mock_client.get_checksum.return_value = None
-        mock_client.verify_checksum.return_value = True
-
         df._download_from_vision(
             req=req,
             binance_interval="1m",
@@ -130,28 +124,158 @@ def test_timezone_offset_in_date_extraction():
 
         # Verify that download_klines was called with UTC-correct year and month
         # Beijing 2024-01-01 00:00:00 should map to UTC 2023-12-31 16:00:00
-        # Therefore the month to download is 2023-12, NOT 2024-01
-        mock_client.download_klines.assert_called()
-
-        # Get the actual call arguments (first call should be the UTC month)
+        # Therefore the month to download is 2023-12, NOT 2024-01.
         call_args = mock_client.download_klines.call_args_list[0]
-        called_year = call_args[0][2]  # 3rd positional arg is year
-        called_month = call_args[0][3]  # 4th positional arg is month
-
-        # The bug: current code uses .date() directly so it would pass year=2024, month=1
-        # The fix: should convert to UTC first so it passes year=2023, month=12
+        called_year = call_args[1].get("year") or call_args[0][2]
+        called_month = call_args[1].get("month") or call_args[0][3]
         assert called_year == 2023, (
-            f"Expected year=2023 (UTC month for Beijing 2024-01-01 00:00:00), "
-            f"but got year={called_year}. "
-            f"This indicates the timezone offset bug - code uses .date() without UTC conversion."
+            f"Expected year=2023 (UTC month for Beijing 2024-01-01 00:00:00), got year={called_year}. "
         )
         assert called_month == 12, (
-            f"Expected month=12 (December, UTC month for Beijing 2024-01-01 00:00:00), "
-            f"but got month={called_month}. "
-            f"This indicates the timezone offset bug - code uses .date() without UTC conversion."
+            f"Expected month=12 (December, UTC month for Beijing 2024-01-01 00:00:00). got month={called_month}. "
         )
+    print("[PASS] test_timezone_offset_in_date_extraction")
 
-        print("[PASS] test_timezone_offset_in_date_extraction")
+
+def test_both_source_uses_smart_fallback():
+    """
+    Test that when source == "both", REST API only downloads missing months,
+    not re-downloading months already downloaded by Vision.
+
+    Scenario:
+    - Request data from 2026-01-01 to 2026-03-31
+    - _determine_data_source returns "both" (crosses history/recent boundary)
+    - Vision returns:
+      - bars_vision: data for 2026-01 and 2026-02
+      - missing_months: [(2026-03-01, 2026-03-31)]  # Only March is missing
+    - Expected behavior:
+      - _download_from_rest is called ONCE to download March data
+      - _download_from_rest is NOT called for Jan/Feb data
+    """
+    df = BinanceDatafeed()
+
+    # Create request spanning 3 months
+    req = HistoryRequest(
+        symbol="BTCUSDT_SPOT_BINANCE",
+        exchange=Exchange.GLOBAL,
+        interval=Interval.MINUTE,
+        start=datetime(2026, 1, 1),
+        end=datetime(2026, 3, 31, 23, 59),
+    )
+
+    # Mock _determine_data_source to return "both"
+    with patch.object(df, "_determine_data_source", return_value="both"):
+        # Mock _download_from_vision to return partial data
+        # Returns: (bars_vision, missing_months)
+        mock_vision_bars = [
+            MagicMock(datetime=datetime(2026, 1, 1, 0, 0)),
+            MagicMock(datetime=datetime(2026, 1, 1, 0, 1)),
+            MagicMock(datetime=datetime(2026, 2, 1, 0, 0)),
+            MagicMock(datetime=datetime(2026, 2, 1, 0, 1)),
+        ]
+        # Only March is missing
+        missing_months = [(date(2026, 3, 1), date(2026, 3, 31))]
+
+        with patch.object(
+            df, "_download_from_vision", return_value=(mock_vision_bars, missing_months)
+        ):
+            # mock _download_from_rest to track calls
+            with patch.object(df, "_download_from_rest") as mock_rest:
+                mock_rest.return_value = [
+                    MagicMock(datetime=datetime(2026, 3, 1, 0, 0)),
+                    MagicMock(datetime=datetime(2026, 3, 1, 0, 1)),
+                ]
+
+                # mock database to return empty (no existing data)
+                with patch.object(df, "database") as mock_db:
+                    mock_db.load_bar_data.return_value = []
+
+                    # Execute query_bar_history
+                    result = df.query_bar_history(req, output=print)
+
+                    # Verify _download_from_vision was called once
+                    # Note: The patch replaces df._download_from_vision, so we check via the mock context
+                    # The mock is still active here
+
+                    # Verify _download_from_rest was called ONCE (only for missing March)
+                    assert mock_rest.call_count == 1, (
+                        f"Expected REST to be called once, but was called {mock_rest.call_count} times"
+                    )
+
+                    # Verify REST was called with March dates only
+                    call_args = mock_rest.call_args
+                    # call_args is (args, kwargs)
+                    # args[0] is位置参数
+                    actual_start = call_args[0][2]  # start_time parameter
+                    actual_end = call_args[0][3]  # end_time parameter
+                    assert actual_start is not None, (
+                        f"start_time is None, got {actual_start}"
+                    )
+                    assert actual_end is not None, f"end_time is None, got {actual_end}"
+                    # Verify month correct (3月)
+                    assert actual_start.month == 3, (
+                        f"Expected REST to start in March, got month {actual_start.month}"
+                    )
+                    assert actual_end.month == 3, (
+                        f"Expected REST to end in March, got month {actual_end.month}"
+                    )
+
+                    # Verify result contains both vision and rest bars
+                    assert len(result) >= 4, (
+                        f"Expected at least 4 bars (2 vision + 2 rest), got {len(result)}"
+                    )
+
+    print("[PASS] test_both_source_uses_smart_fallback")
+
+
+def test_both_source_no_duplicate_vision_months():
+    """
+    Test that REST API is never called for months that Vision already downloaded.
+
+    This specifically tests that the smart fallback logic prevents redundant downloads
+    when Vision successfully provides data for certain months.
+    """
+    df = BinanceDatafeed()
+
+    # Request data for Jan-Feb 2026 (both historical, so source="vision" or "both")
+    req = HistoryRequest(
+        symbol="BTCUSDT_SPOT_BINANCE",
+        exchange=Exchange.GLOBAL,
+        interval=Interval.MINUTE,
+        start=datetime(2026, 1, 1),
+        end=datetime(2026, 2, 28),
+    )
+
+    with patch.object(df, "_determine_data_source", return_value="both"):
+        # Vision returns all data (no missing months)
+        mock_vision_bars = [
+            MagicMock(datetime=datetime(2026, 1, 15, 12, 0)),
+            MagicMock(datetime=datetime(2026, 2, 15, 12, 0)),
+        ]
+        missing_months = []  # No missing months!
+
+        with patch.object(
+            df, "_download_from_vision", return_value=(mock_vision_bars, missing_months)
+        ):
+            with patch.object(df, "_download_from_rest") as mock_rest:
+                mock_rest.return_value = []
+
+                with patch.object(df, "database") as mock_db:
+                    mock_db.load_bar_data.return_value = []
+
+                    result = df.query_bar_history(req, output=print)
+
+                    # REST should NOT be called at all since no missing months
+                    assert mock_rest.call_count == 0, (
+                        f"Expected REST to NOT be called, but was called {mock_rest.call_count} times"
+                    )
+
+                    # Result should only contain vision bars
+                    assert len(result) == 2, (
+                        f"Expected 2 vision bars, got {len(result)}"
+                    )
+
+    print("[PASS] test_both_source_no_duplicate_vision_months")
 
 
 if __name__ == "__main__":
@@ -161,6 +285,8 @@ if __name__ == "__main__":
     test_download_from_vision_return_type()
     test_get_last_day_of_month()
     test_timezone_offset_in_date_extraction()
+    test_both_source_uses_smart_fallback()
+    test_both_source_no_duplicate_vision_months()
 
     print("-" * 50)
     print("All tests passed!")
