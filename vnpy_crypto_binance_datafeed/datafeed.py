@@ -195,7 +195,7 @@ class BinanceDatafeed(BaseDatafeed):
             # Determine data source for this gap
             source = self._determine_data_source(gap_start, gap_end)
 
-            if source == "vision":
+            if source in ["vision", "both"]:
                 # Unpack tuple: (bars_vision, missing_months)
                 bars_vision, missing_months = self._download_from_vision(
                     req,
@@ -262,33 +262,6 @@ class BinanceDatafeed(BaseDatafeed):
                     rest_client=rest_client,
                     symbol_for_api=symbol_for_api,
                 )
-            elif source == "both":
-                bars_vision, _ = self._download_from_vision(
-                    req,
-                    binance_interval,
-                    gap_start,
-                    gap_end,
-                    interval,
-                    output,
-                    vision_client=vision_client,
-                    symbol_for_api=symbol_for_api,
-                )
-                bars_rest = self._download_from_rest(
-                    req,
-                    binance_interval,
-                    gap_start,
-                    gap_end,
-                    interval,
-                    output,
-                    rest_client=rest_client,
-                    symbol_for_api=symbol_for_api,
-                )
-                # Merge and deduplicate
-                new_bars_dict = {bar.datetime: bar for bar in bars_vision}
-                for bar in bars_rest:
-                    new_bars_dict[bar.datetime] = bar
-                new_bars = list(new_bars_dict.values())
-                new_bars.sort(key=lambda x: x.datetime)
             else:
                 new_bars = []
 
