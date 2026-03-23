@@ -167,13 +167,29 @@ class BinanceDatafeed(BaseDatafeed):
             self._log_error(f"不支持的K线周期: {interval}", output)
             return []
 
+        # Convert aware datetime to naive for SQLite query compatibility
+        # SQLite stores datetime as naive strings; aware datetime causes
+        # lexicographic comparison failures at boundary values
+        from zoneinfo import ZoneInfo
+
+        db_start = (
+            start_time.astimezone(DB_TZ).replace(tzinfo=None)
+            if start_time.tzinfo
+            else start_time
+        )
+        db_end = (
+            end_time.astimezone(DB_TZ).replace(tzinfo=None)
+            if end_time.tzinfo
+            else end_time
+        )
+
         # Load existing data from database
         existing_bars = self.database.load_bar_data(
             symbol=req.symbol,
             exchange=req.exchange,
             interval=interval,
-            start=start_time,
-            end=end_time,
+            start=db_start,
+            end=db_end,
         )
 
         # Find gaps in existing data based on requested interval
