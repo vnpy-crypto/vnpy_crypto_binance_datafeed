@@ -170,8 +170,6 @@ class BinanceDatafeed(BaseDatafeed):
         # Convert aware datetime to naive for SQLite query compatibility
         # SQLite stores datetime as naive strings; aware datetime causes
         # lexicographic comparison failures at boundary values
-        from zoneinfo import ZoneInfo
-
         db_start = (
             start_time.astimezone(DB_TZ).replace(tzinfo=None)
             if start_time.tzinfo
