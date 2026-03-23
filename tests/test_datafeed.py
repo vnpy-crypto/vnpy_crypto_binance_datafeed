@@ -12,6 +12,7 @@ import pytest
 
 from vnpy.trader.constant import Exchange, Interval
 from vnpy.trader.object import BarData, HistoryRequest
+from vnpy.trader.database import DB_TZ
 from vnpy_crypto_binance_datafeed.datafeed import BinanceDatafeed
 
 
@@ -1518,3 +1519,60 @@ class TestEndToEndGUIFlow:
             for bar in bars:
                 assert bar.symbol == "BTCUSDT_SPOT_BINANCE"
                 assert bar.exchange == Exchange.GLOBAL
+
+
+class TestAwareDatetimeBoundary:
+    """Tests for aware datetime boundary handling in database queries."""
+
+    def test_aware_datetime_converted_to_naive_for_database_query(
+        self, datafeed, mock_database, mock_rest_client
+    ):
+        """Test that aware datetime is converted to naive for SQLite query.
+
+        Bug: When HistoryRequest.start is an aware datetime (e.g., datetime(2026, 1, 1, tzinfo=DB_TZ)),
+        and the database contains a BarData with naive datetime datetime(2026, 1, 1) (which is what
+        SQLite stores), the load_bar_data query currently fails to match this boundary row due to
+        SQLite's string comparison.
+
+        SQLite stores datetime as naive strings like "2026-01-01 00:00:00". When GUI passes aware
+        datetime "2026-01-01 00:00:00+08:00", the query does lexicographic comparison:
+        "2026-01-01 00:00:00" < "2026-01-01 00:00:00+08:00" (shorter < longer when prefix matches).
+
+        So boundary row is excluded from results.
+        """
+        # Create aware datetimes (as GUI would pass)
+        aware_start = datetime(2026, 1, 1, tzinfo=DB_TZ)
+        aware_end = datetime(2026, 1, 2, tzinfo=DB_TZ)
+
+        # Create request with aware datetimes
+        req = HistoryRequest(
+            symbol="BTCUSDT_SPOT_BINANCE",
+            exchange=Exchange.GLOBAL,
+            interval=Interval.DAILY,
+            start=aware_start,
+            end=aware_end,
+        )
+
+        # Mock database to return empty (will trigger download path)
+        mock_database.load_bar_data.return_value = []
+
+        # Mock rest client to return empty (will cause download loop to break)
+        mock_rest_client.get_klines.return_value = []
+
+        # Execute query
+        datafeed.query_bar_history(req, output=lambda x: None)
+
+        # Verify load_bar_data was called
+        mock_database.load_bar_data.assert_called_once()
+
+        # Get the call kwargs
+        call_kwargs = mock_database.load_bar_data.call_args[1]
+
+        # Assert that start and end are NAIVE (tzinfo is None)
+        # This is the bug - currently they remain aware, causing boundary issues
+        assert call_kwargs["start"].tzinfo is None, (
+            f"Expected start to be naive (tzinfo=None), but got {call_kwargs['start'].tzinfo}"
+        )
+        assert call_kwargs["end"].tzinfo is None, (
+            f"Expected end to be naive (tzinfo=None), but got {call_kwargs['end'].tzinfo}"
+        )
