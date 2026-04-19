@@ -8,5 +8,12 @@ venv/
 dist/
 build/
 
+# Test data output
+tests/*.csv
+tests/*.json
+
 # Windows artifact files
 nul
+
+# Ruff cache
+.ruff_cache/
