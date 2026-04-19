@@ -20,7 +20,7 @@ from vnpy.trader.datafeed import get_datafeed, BaseDatafeed
 from vnpy.trader.setting import SETTINGS
 
 # Import the BinanceDatafeed directly for testing
-from vnpy_crypto_binance_datafeed.datafeed import BinanceDatafeed
+from vnpy_binance_datafeed.datafeed import BinanceDatafeed
 
 
 # Test configuration

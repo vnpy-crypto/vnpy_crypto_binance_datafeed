@@ -3,8 +3,8 @@ import hashlib
 from unittest.mock import MagicMock, patch
 from datetime import date
 import requests
-from vnpy_crypto_binance_datafeed.vision_client import VisionClient
-from vnpy_crypto_binance_datafeed.constant import BINANCE_VISION_URL
+from vnpy_binance_datafeed.vision_client import VisionClient
+from vnpy_binance_datafeed.constant import BINANCE_VISION_URL
 
 
 @pytest.fixture

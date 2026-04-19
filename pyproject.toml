@@ -1,10 +1,11 @@
 [project]
-name = "vnpy_crypto_binance_datafeed"
+name = "vnpy_binance_datafeed"
 dynamic = ["version"]
 description = "BINANCE datafeed module for VeighNa."
 readme = "README.md"
-license = {text = "MIT"}
-authors = [{name = "VeighNa Global", email = "veighna@hotmail.com"}]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+authors = [{name = "gaobowen", email = "b_w_gao@hotmail.com"}]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Operating System :: Microsoft :: Windows",
@@ -28,23 +29,23 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://www.github.com/veighna-global"
-"Source" = "https://www.github.com/veighna-global"
+"Homepage" = "https://github.com/vnpy-crypto/vnpy_crypto_binance_datafeed"
+"Source" = "https://github.com/vnpy-crypto/vnpy_crypto_binance_datafeed"
 
 [build-system]
 requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "vnpy_crypto_binance_datafeed/__init__.py"
+path = "vnpy_binance_datafeed/__init__.py"
 pattern = "__version__ = ['\"](?P<version>[^'\"]+)['\"]"
 
 [tool.hatch.build.targets.wheel]
-packages = ["vnpy_crypto_binance_datafeed"]
+packages = ["vnpy_binance_datafeed"]
 include-package-data = true
 
 [tool.hatch.build.targets.sdist]
-include = ["vnpy_crypto_binance_datafeed*"]
+include = ["vnpy_binance_datafeed*"]
 
 [tool.ruff]
 target-version = "py310"

@@ -13,7 +13,7 @@ import pytest
 from vnpy.trader.constant import Exchange, Interval
 from vnpy.trader.object import BarData, HistoryRequest
 from vnpy.trader.database import DB_TZ
-from vnpy_crypto_binance_datafeed.datafeed import BinanceDatafeed
+from vnpy_binance_datafeed.datafeed import BinanceDatafeed
 
 
 def create_mock_zip_csv(csv_data: bytes) -> bytes:
@@ -104,15 +104,15 @@ def datafeed(mock_database, mock_vision_client, mock_rest_client):
     """Create a BinanceDatafeed with mocked dependencies."""
     with (
         patch(
-            "vnpy_crypto_binance_datafeed.datafeed.VisionClient",
+            "vnpy_binance_datafeed.datafeed.VisionClient",
             return_value=mock_vision_client,
         ),
         patch(
-            "vnpy_crypto_binance_datafeed.datafeed.BinanceRestClient",
+            "vnpy_binance_datafeed.datafeed.BinanceRestClient",
             return_value=mock_rest_client,
         ),
         patch(
-            "vnpy_crypto_binance_datafeed.datafeed.get_database",
+            "vnpy_binance_datafeed.datafeed.get_database",
             return_value=mock_database,
         ),
     ):
@@ -139,15 +139,15 @@ class TestBinanceDatafeedInit:
 
         with (
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.VisionClient",
+                "vnpy_binance_datafeed.datafeed.VisionClient",
                 return_value=mock_vision_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.BinanceRestClient",
+                "vnpy_binance_datafeed.datafeed.BinanceRestClient",
                 return_value=mock_rest_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.get_database",
+                "vnpy_binance_datafeed.datafeed.get_database",
                 return_value=mock_database,
             ),
         ):
@@ -178,15 +178,15 @@ class TestBinanceDatafeedInit:
 
         with (
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.VisionClient",
+                "vnpy_binance_datafeed.datafeed.VisionClient",
                 return_value=mock_vision_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.BinanceRestClient",
+                "vnpy_binance_datafeed.datafeed.BinanceRestClient",
                 return_value=mock_rest_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.get_database",
+                "vnpy_binance_datafeed.datafeed.get_database",
                 return_value=mock_database,
             ),
         ):
@@ -822,15 +822,15 @@ class TestInvalidSymbol:
         """Test that symbol validation is skipped when symbols set is empty."""
         with (
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.VisionClient",
+                "vnpy_binance_datafeed.datafeed.VisionClient",
                 return_value=mock_vision_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.BinanceRestClient",
+                "vnpy_binance_datafeed.datafeed.BinanceRestClient",
                 return_value=mock_rest_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.get_database",
+                "vnpy_binance_datafeed.datafeed.get_database",
                 return_value=mock_database,
             ),
         ):
@@ -874,7 +874,7 @@ class TestIntervalHandling:
         mock_interval.__str__ = lambda self: "99w"
 
         # Mock INTERVAL_VT2BINANCE to not contain this interval
-        with patch("vnpy_crypto_binance_datafeed.datafeed.INTERVAL_VT2BINANCE", {}):
+        with patch("vnpy_binance_datafeed.datafeed.INTERVAL_VT2BINANCE", {}):
             req = HistoryRequest(
                 symbol="BTCUSDT_SPOT_BINANCE",
                 exchange=Exchange.GLOBAL,
@@ -985,15 +985,15 @@ class TestEdgeCases:
 
         with (
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.VisionClient",
+                "vnpy_binance_datafeed.datafeed.VisionClient",
                 return_value=mock_vision_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.BinanceRestClient",
+                "vnpy_binance_datafeed.datafeed.BinanceRestClient",
                 return_value=mock_rest_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.get_database",
+                "vnpy_binance_datafeed.datafeed.get_database",
                 return_value=mock_database,
             ),
         ):
@@ -1027,7 +1027,7 @@ class TestParseVtSymbol:
 
     def test_parse_spot_symbol(self):
         """Test parsing SPOT market symbol."""
-        from vnpy_crypto_binance_datafeed.constant import parse_vt_symbol
+        from vnpy_binance_datafeed.constant import parse_vt_symbol
 
         result = parse_vt_symbol("BTCUSDT_SPOT_BINANCE")
 
@@ -1039,7 +1039,7 @@ class TestParseVtSymbol:
 
     def test_parse_swap_symbol(self):
         """Test parsing SWAP market symbol."""
-        from vnpy_crypto_binance_datafeed.constant import parse_vt_symbol
+        from vnpy_binance_datafeed.constant import parse_vt_symbol
 
         result = parse_vt_symbol("BTCUSDT_SWAP_BINANCE")
 
@@ -1051,7 +1051,7 @@ class TestParseVtSymbol:
 
     def test_parse_with_global_suffix(self):
         """Test parsing symbol with .GLOBAL suffix."""
-        from vnpy_crypto_binance_datafeed.constant import parse_vt_symbol
+        from vnpy_binance_datafeed.constant import parse_vt_symbol
 
         result = parse_vt_symbol("ETHUSDT_SPOT_BINANCE.GLOBAL")
 
@@ -1063,7 +1063,7 @@ class TestParseVtSymbol:
 
     def test_parse_invalid_symbol(self):
         """Test parsing invalid symbol formats."""
-        from vnpy_crypto_binance_datafeed.constant import parse_vt_symbol
+        from vnpy_binance_datafeed.constant import parse_vt_symbol
 
         # Invalid: missing market type and exchange
         result = parse_vt_symbol("BTCUSDT")
@@ -1212,15 +1212,15 @@ class TestEndToEndGUIFlow:
         # 1. Initialize datafeed (simulates GUI opening DataManager)
         with (
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.VisionClient",
+                "vnpy_binance_datafeed.datafeed.VisionClient",
                 return_value=mock_vision_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.BinanceRestClient",
+                "vnpy_binance_datafeed.datafeed.BinanceRestClient",
                 return_value=mock_rest_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.get_database",
+                "vnpy_binance_datafeed.datafeed.get_database",
                 return_value=mock_database,
             ),
         ):
@@ -1273,15 +1273,15 @@ class TestEndToEndGUIFlow:
         # 1. Initialize datafeed (simulates GUI opening DataManager)
         with (
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.VisionClient",
+                "vnpy_binance_datafeed.datafeed.VisionClient",
                 return_value=mock_vision_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.BinanceRestClient",
+                "vnpy_binance_datafeed.datafeed.BinanceRestClient",
                 return_value=mock_rest_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.get_database",
+                "vnpy_binance_datafeed.datafeed.get_database",
                 return_value=mock_database,
             ),
         ):
@@ -1333,15 +1333,15 @@ class TestEndToEndGUIFlow:
         # 1. Initialize datafeed
         with (
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.VisionClient",
+                "vnpy_binance_datafeed.datafeed.VisionClient",
                 return_value=mock_vision_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.BinanceRestClient",
+                "vnpy_binance_datafeed.datafeed.BinanceRestClient",
                 return_value=mock_rest_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.get_database",
+                "vnpy_binance_datafeed.datafeed.get_database",
                 return_value=mock_database,
             ),
         ):
@@ -1411,15 +1411,15 @@ class TestEndToEndGUIFlow:
             # 1. Initialize datafeed
             with (
                 patch(
-                    "vnpy_crypto_binance_datafeed.datafeed.VisionClient",
+                    "vnpy_binance_datafeed.datafeed.VisionClient",
                     return_value=mock_vision_client,
                 ),
                 patch(
-                    "vnpy_crypto_binance_datafeed.datafeed.BinanceRestClient",
+                    "vnpy_binance_datafeed.datafeed.BinanceRestClient",
                     return_value=mock_rest_client,
                 ),
                 patch(
-                    "vnpy_crypto_binance_datafeed.datafeed.get_database",
+                    "vnpy_binance_datafeed.datafeed.get_database",
                     return_value=mock_database,
                 ),
             ):
@@ -1468,15 +1468,15 @@ class TestEndToEndGUIFlow:
         # 1. Initialize datafeed
         with (
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.VisionClient",
+                "vnpy_binance_datafeed.datafeed.VisionClient",
                 return_value=mock_vision_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.BinanceRestClient",
+                "vnpy_binance_datafeed.datafeed.BinanceRestClient",
                 return_value=mock_rest_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.get_database",
+                "vnpy_binance_datafeed.datafeed.get_database",
                 return_value=mock_database,
             ),
         ):

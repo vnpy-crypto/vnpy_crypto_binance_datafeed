@@ -2,8 +2,8 @@ import pytest
 import time
 import requests
 from unittest.mock import MagicMock, patch
-from vnpy_crypto_binance_datafeed.rest_client import BinanceRestClient
-from vnpy_crypto_binance_datafeed.constant import BINANCE_REST_URL
+from vnpy_binance_datafeed.rest_client import BinanceRestClient
+from vnpy_binance_datafeed.constant import BINANCE_REST_URL
 
 
 @pytest.fixture
@@ -200,7 +200,7 @@ def test_get_klines_success(client):
     with (
         patch.object(client.session, "request") as mock_request,
         patch(
-            "vnpy_crypto_binance_datafeed.rest_client.parse_kline_json"
+            "vnpy_binance_datafeed.rest_client.parse_kline_json"
         ) as mock_parse,
     ):
         mock_request.return_value.status_code = 200

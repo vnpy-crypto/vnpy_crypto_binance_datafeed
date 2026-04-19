@@ -16,7 +16,7 @@ import pytest
 
 from vnpy.trader.constant import Exchange, Interval
 from vnpy.trader.object import HistoryRequest
-from vnpy_crypto_binance_datafeed.datafeed import BinanceDatafeed
+from vnpy_binance_datafeed.datafeed import BinanceDatafeed
 
 
 @pytest.fixture
@@ -48,15 +48,15 @@ def mock_datafeed(mock_database, mock_vision_client, mock_rest_client):
     """Create a BinanceDatafeed with mocked dependencies."""
     with (
         patch(
-            "vnpy_crypto_binance_datafeed.datafeed.VisionClient",
+            "vnpy_binance_datafeed.datafeed.VisionClient",
             return_value=mock_vision_client,
         ),
         patch(
-            "vnpy_crypto_binance_datafeed.datafeed.BinanceRestClient",
+            "vnpy_binance_datafeed.datafeed.BinanceRestClient",
             return_value=mock_rest_client,
         ),
         patch(
-            "vnpy_crypto_binance_datafeed.datafeed.get_database",
+            "vnpy_binance_datafeed.datafeed.get_database",
             return_value=mock_database,
         ),
     ):
@@ -130,15 +130,15 @@ class TestInfoMessagesLoggedNotOutput:
 
         with (
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.VisionClient",
+                "vnpy_binance_datafeed.datafeed.VisionClient",
                 return_value=MagicMock(),
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.BinanceRestClient",
+                "vnpy_binance_datafeed.datafeed.BinanceRestClient",
                 return_value=mock_rest_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.get_database",
+                "vnpy_binance_datafeed.datafeed.get_database",
                 return_value=MagicMock(),
             ),
         ):
@@ -249,15 +249,15 @@ class TestErrorMessagesDualOutput:
 
         with (
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.VisionClient",
+                "vnpy_binance_datafeed.datafeed.VisionClient",
                 return_value=MagicMock(),
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.BinanceRestClient",
+                "vnpy_binance_datafeed.datafeed.BinanceRestClient",
                 return_value=mock_rest_client,
             ),
             patch(
-                "vnpy_crypto_binance_datafeed.datafeed.get_database",
+                "vnpy_binance_datafeed.datafeed.get_database",
                 return_value=MagicMock(),
             ),
         ):

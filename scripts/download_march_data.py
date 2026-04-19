@@ -9,7 +9,7 @@ from datetime import datetime
 from vnpy.trader.constant import Exchange, Interval
 from vnpy.trader.object import HistoryRequest
 from vnpy.trader.database import get_database
-from vnpy_crypto_binance_datafeed.datafeed import BinanceDatafeed
+from vnpy_binance_datafeed.datafeed import BinanceDatafeed
 
 
 def main():

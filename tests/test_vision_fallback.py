@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from unittest.mock import MagicMock, patch
 from vnpy.trader.constant import Exchange, Interval
 from vnpy.trader.object import HistoryRequest
-from vnpy_crypto_binance_datafeed.datafeed import BinanceDatafeed
+from vnpy_binance_datafeed.datafeed import BinanceDatafeed
 
 
 def test_download_from_vision_return_type():

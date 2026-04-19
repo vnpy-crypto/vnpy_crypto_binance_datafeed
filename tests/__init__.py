@@ -1,1 +1,1 @@
-# Tests package for vnpy_crypto_binance_datafeed
+# Tests package for vnpy_binance_datafeed

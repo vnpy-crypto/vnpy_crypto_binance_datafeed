@@ -3,8 +3,8 @@ Investigate missing minute data points on Binance API.
 Query specific timestamps to verify if data exists on Binance.
 """
 
-from vnpy_crypto_binance_datafeed.rest_client import BinanceRestClient
-from vnpy_crypto_binance_datafeed.constant import MarketType
+from vnpy_binance_datafeed.rest_client import BinanceRestClient
+from vnpy_binance_datafeed.constant import MarketType
 from datetime import datetime, timezone
 
 client = BinanceRestClient(market_type=MarketType.SPOT)

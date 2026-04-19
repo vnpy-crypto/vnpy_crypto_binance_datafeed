@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime
 from vnpy.trader.constant import Exchange, Interval
-from vnpy_crypto_binance_datafeed.parser import (
+from vnpy_binance_datafeed.parser import (
     parse_kline_csv,
     parse_kline_json,
     generate_datetime,

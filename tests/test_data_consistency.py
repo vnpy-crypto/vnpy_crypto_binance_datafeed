@@ -17,8 +17,8 @@ from vnpy.trader.database import get_database
 from vnpy.trader.constant import Exchange, Interval
 from vnpy.trader.object import BarData
 
-from vnpy_crypto_binance_datafeed.rest_client import BinanceRestClient
-from vnpy_crypto_binance_datafeed.constant import MarketType
+from vnpy_binance_datafeed.rest_client import BinanceRestClient
+from vnpy_binance_datafeed.constant import MarketType
 
 
 # =============================================================================
