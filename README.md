@@ -1,8 +1,184 @@
-# vnpy_crypto_binance_datafeed
+# vnpy_binance_datafeed
+
+[中文文档](#中文文档)
+
+Binance historical data download module for the VeighNa framework, providing cryptocurrency K-line data support.
+
+## Features
+
+- **Dual Data Source Support**: Automatically selects the optimal data source
+  - `data.binance.vision`: Historical data (downloaded by month, fast)
+  - REST API: Recent data (real-time retrieval)
+- **Smart Gap Detection**: Only downloads missing data, avoiding duplicate downloads
+- **Dual Market Support**: Spot (SPOT) and Perpetual Contracts (SWAP/USDT-M Futures)
+- **Multiple Time Intervals**: Supports 1m, 5m, 15m, 30m, 1h, 4h, 1d
+- **Data Deduplication**: Automatically handles duplicate data
+
+## Installation
+
+```bash
+pip install vnpy-binance-datafeed
+```
+
+For development installation:
+
+```bash
+pip install -e .
+```
+
+## Contract Code Format
+
+| Market | Format | Example |
+|--------|--------|---------|
+| Spot | `{SYMBOL}_SPOT_BINANCE` | `BTCUSDT_SPOT_BINANCE` |
+| Perpetual | `{SYMBOL}_SWAP_BINANCE` | `BTCUSDT_SWAP_BINANCE` |
+
+The system automatically identifies the market type and selects the correct API endpoint.
+
+## Supported Time Intervals
+
+| Interval | Binance Parameter | Note |
+|----------|-------------------|------|
+| 1 minute | `1m` | Interval.MINUTE |
+| 5 minutes | `5m` | - |
+| 15 minutes | `15m` | - |
+| 30 minutes | `30m` | - |
+| 1 hour | `1h` | Interval.HOUR |
+| 4 hours | `4h` | - |
+| 1 day | `1d` | Interval.DAILY |
+
+## Data Source Selection Strategy
+
+The module automatically selects the optimal data source based on the requested time range:
+
+| Time Range | Data Source | Description |
+|------------|-------------|-------------|
+| End time < yesterday | Vision | Historical data, batch download by month |
+| Start time >= yesterday | REST API | Recent data, real-time retrieval |
+| Spanning boundary | Vision + REST | Both combined, automatic merge and deduplication |
+
+## Usage
+
+### Configuration
+
+#### GUI Global Configuration
+
+Configure the datafeed in VeighNa Trader:
+
+1. Launch VeighNa Trader
+2. Click the **Configuration** menu
+3. Find the **datafeed.name** configuration item
+4. Enter: `binance_datafeed`
+5. Click OK
+
+> ⚠️ **Important**: If `datafeed.name` is not configured, the GUI's data management features will not be able to use this module.
+
+#### Using via GUI
+
+1. Launch VeighNa Trader
+2. Open the **Data Manager** application
+3. Click **Download Data**
+4. Fill in the information:
+   - Symbol: `BTCUSDT_SPOT_BINANCE`
+   - Exchange: `GLOBAL`
+   - Interval: Select time interval
+   - Start Date: Select start date
+5. Click Download
+
+#### Using via Code
+
+```python
+from vnpy.trader.datafeed import get_datafeed
+from vnpy.trader.object import HistoryRequest
+from vnpy.trader.constant import Exchange, Interval
+from datetime import datetime
+
+# Get datafeed instance
+datafeed = get_datafeed()
+
+# Create historical data request
+req = HistoryRequest(
+    symbol="BTCUSDT_SPOT_BINANCE",  # Spot
+    # symbol="BTCUSDT_SWAP_BINANCE",  # Perpetual
+    exchange=Exchange.GLOBAL,
+    interval=Interval.MINUTE,
+    start=datetime(2024, 1, 1),
+    end=datetime(2024, 1, 31)
+)
+
+# Query historical data
+bars = datafeed.query_bar_history(req)
+print(f"Downloaded {len(bars)} bars")
+```
+
+## Incremental Update Mechanism
+
+The module implements intelligent gap detection, only downloading missing data:
+
+```
+Request data: 2024-01-01 to 2024-03-31
+    │
+    ├─► Load existing data from database
+    │
+    ├─► Detect gaps (missing time points)
+    │
+    ├─► Only download missing parts
+    │
+    └─► Return new data (for datamanager to save)
+```
+
+## Timezone Handling
+
+| Stage | Timezone | Description |
+|-------|----------|-------------|
+| User Input | DB_TZ (Asia/Shanghai) | GUI automatically adds |
+| Binance API | UTC | Automatically converted during request |
+| Returned Data | UTC-aware | Handled by parser |
+| Database Storage | naive (actual DB_TZ) | Converted by convert_tz |
+
+### Automatic Features
+
+The module automatically:
+- Loads Binance contract list during initialization
+- Identifies market type based on contract code
+- Selects the correct API endpoint
+
+## FAQ
+
+### Error: "Invalid contract code format"
+
+Ensure the contract code format is correct:
+- ✅ Correct: `BTCUSDT_SPOT_BINANCE`
+- ✅ Correct: `ETHUSDT_SWAP_BINANCE`
+- ❌ Incorrect: `BTCUSDT` (missing market type identifier)
+- ❌ Incorrect: `btcusdt_spot_binance` (needs uppercase)
+
+### Error: "Unsupported K-line interval"
+
+Ensure you use a supported time interval: `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d`
+
+## Dependencies
+
+- vnpy >= 3.0
+- requests
+
+## License
+
+MIT License
+
+## Related Links
+
+- [VeighNa](https://github.com/vnpy/vnpy) - Quantitative trading platform
+- [Binance Public Data](https://data.binance.vision/) - Binance historical data
+- [Binance API](https://binance-docs.github.io/apidocs/) - Binance API documentation
+
+---
+
+# 中文文档
+
+[English](#vnpy_binance_datafeed)
 
 Binance 历史数据下载模块，为 VeighNa 框架提供加密货币 K线数据支持。
-
-> 🔄 自动推送测试：此项目已配置 Git 钩子，提交后自动推送到远程仓库。
 
 ## 功能特性
 
@@ -15,6 +191,12 @@ Binance 历史数据下载模块，为 VeighNa 框架提供加密货币 K线数�
 - **数据去重**：自动处理重复数据
 
 ## 安装
+
+```bash
+pip install vnpy-binance-datafeed
+```
+
+开发安装：
 
 ```bash
 pip install -e .
@@ -53,22 +235,21 @@ pip install -e .
 
 ## 使用方法
 
-## 配置
+### 配置
 
-### GUI 全局配置
+#### GUI 全局配置
 
 在 VeighNa Trader 中配置 datafeed：
 
 1. 启动 VeighNa Trader
 2. 点击菜单 **配置**
 3. 找到 **datafeed.name** 配置项
-4. 填入：`crypto_binance_datafeed`
+4. 填入：`binance_datafeed`
 5. 点击确定
 
 > ⚠️ **重要**：如果不配置 `datafeed.name`，GUI 的数据管理功能将无法使用此模块。
 
-
-### 通过 GUI 使用
+#### 通过 GUI 使用
 
 1. 启动 VeighNa Trader
 2. 打开 **数据管理** 应用
@@ -80,7 +261,7 @@ pip install -e .
    - 开始日期：选择起始日期
 5. 点击下载
 
-### 通过代码使用
+#### 通过代码使用
 
 ```python
 from vnpy.trader.datafeed import get_datafeed
@@ -131,7 +312,6 @@ print(f"下载了 {len(bars)} 根K线")
 | 返回数据 | UTC-aware | parser 处理 |
 | 数据库存储 | naive (实际 DB_TZ) | convert_tz 转换 |
 
-
 ### 自动功能
 
 模块会自动：
@@ -153,12 +333,10 @@ print(f"下载了 {len(bars)} 根K线")
 
 确保使用支持的时间周期：`1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d`
 
-
 ## 依赖
 
 - vnpy >= 3.0
 - requests
-- pandas
 
 ## 许可证
 
