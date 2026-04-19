@@ -17,3 +17,9 @@ nul
 
 # Ruff cache
 .ruff_cache/
+
+# Mypy cache
+.mypy_cache/
+
+# Sisyphus work files
+.sisyphus/

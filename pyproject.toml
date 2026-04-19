@@ -29,8 +29,8 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/vnpy-crypto/vnpy_crypto_binance_datafeed"
-"Source" = "https://github.com/vnpy-crypto/vnpy_crypto_binance_datafeed"
+"Homepage" = "https://github.com/vnpy-crypto/vnpy_binance_datafeed"
+"Source" = "https://github.com/vnpy-crypto/vnpy_binance_datafeed"
 
 [build-system]
 requires = ["hatchling>=1.27.0"]
